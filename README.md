@@ -26,35 +26,40 @@
 
 ## Key Features
 
-1. **High-Detail OpenAI Vision OCR**:
+1. **Dual Ingestion (Screenshots & Multi-Page PDFs)**:
+   - Ingests standalone screenshot images (`.png`, `.jpg`, `.jpeg`, `.webp`, `.heic`, `.bmp`).
+   - Ingests single-page and multi-page PDF documents (`.pdf`).
+   - Automatically renders each PDF page into high-resolution PNG images at 2.0x scale (~144 DPI) using `pypdfium2`, generating distinct screenshot records (`<Name> (Page N).png`) for independent OCR parsing, visual verification, and job extraction.
+
+2. **High-Detail OpenAI Vision OCR**:
    - Transcribes all readable characters from screenshots word-for-word into `raw_text` using `detail: high` mode.
    - Extracts structured fields: Role, Sector, Company, Location, Country, Experience, Salary, Qualification, Other Details, and How to Apply.
    - Preserves exact character evidence strings linking extracted data back to the image.
 
-2. **Automated 5-Stage Processing Pipeline**:
+3. **Automated 5-Stage Processing Pipeline**:
    - `received` ➔ `reading` ➔ `verifying` ➔ `sorting` ➔ `saved`.
    - Real-time progress indicators for every processed screenshot.
 
-3. **Intelligent Deduplication**:
+4. **Intelligent Deduplication**:
    - SHA-style text normalization and fingerprint hashing (`Title|Company|Contact`).
    - Configurable deduplication lookback window (default: 30 days).
    - Duplicate jobs are automatically flagged and linked to the existing record without polluting the master sheet.
 
-4. **Review Queue & Interactive Drawer**:
+5. **Review Queue & Interactive Drawer**:
    - Side-by-side modal view comparing the original screenshot with the extracted OCR text.
    - Real-time inline field editing.
    - Single-click **Approve & add to sheet** or **Reject** actions.
 
-5. **Client-Standard Job ID Generation**:
+6. **Client-Standard Job ID Generation**:
    - Automatically prefixes IDs based on vault type (`C-`, `E-`, `L-`, `M-`, `R-`, `G-`).
    - Date-stamped with daily sequence numbers (e.g. `E-141026-49`, `C-141126-01`).
 
-6. **Standardized 12-Column Excel & CSV Export**:
+7. **Standardized 12-Column Excel & CSV Export**:
    - Generates Excel workbook with **All Jobs** master tab plus **6 dedicated Access Vault tabs**.
    - Identical 12 columns across every sheet with Navy Dark Header (`#15202C`), auto-width columns, and auto-filters.
    - In-app **Copy for Excel** feature copies the exact 12 columns formatted with tab delimiters for direct clipboard pasting.
 
-7. **Direct Dashboard Access**:
+8. **Direct Dashboard Access**:
    - Seamless unauthenticated access for internal enterprise dashboard usage at `http://127.0.0.1:8000/dashboard/`.
 
 ---
@@ -63,21 +68,25 @@
 
 ```mermaid
 flowchart TD
-    A["Job Screenshot Upload (PNG, JPG, WEBP)"] --> B["5-Stage Pipeline Initiation (received)"]
-    B --> C["OpenAI Vision API (GPT-4o detail: high)"]
-    C --> D["Full OCR Raw Text Transcription"]
-    C --> E["Structured JSON Field Extraction"]
-    D --> F["Deduplication Fingerprint Check"]
-    E --> F
-    F -- "Duplicate Found" --> G["Mark as Duplicate (Linked to Parent)"]
-    F -- "Missing Fields / Low Confidence" --> H["Send to Needs Review Queue"]
-    F -- "Validated" --> I["Direct to In Sheet"]
-    H --> J["Admin Review Drawer: Edit & Approve"]
-    J --> I
-    I --> K["Auto-Generate Job ID (Prefix-DDMMYY-Seq)"]
-    K --> L["PostgreSQL Database (Vault_AI)"]
-    L --> M["Download Excel (12-Column, 7-Tab Workbook)"]
-    L --> N["CSV Export & Clipboard Copy"]
+    A["Job Upload (PNG, JPG, WEBP, PDF)"] --> B{"File Type Check"}
+    B -- "PDF File" --> C1["pypdfium2 (2.0x / ~144 DPI Render)"]
+    C1 --> C2["Split Pages into Individual Screenshots"]
+    B -- "Image File" --> C2
+    C2 --> D["5-Stage Pipeline Initiation (received)"]
+    D --> E["OpenAI Vision API (GPT-4o detail: high)"]
+    E --> F["Full OCR Raw Text Transcription"]
+    E --> G["Structured JSON Field Extraction"]
+    F --> H["Deduplication Fingerprint Check"]
+    G --> H
+    H -- "Duplicate Found" --> I["Mark as Duplicate (Linked to Parent)"]
+    H -- "Missing Fields / Low Confidence" --> J["Send to Needs Review Queue"]
+    H -- "Validated" --> K["Direct to In Sheet"]
+    J --> L["Admin Review Drawer: Edit & Approve"]
+    L --> K
+    K --> M["Auto-Generate Job ID (Prefix-DDMMYY-Seq)"]
+    M --> N["PostgreSQL Database (Vault_AI)"]
+    N --> O["Download Excel (12-Column, 7-Tab Workbook)"]
+    N --> P["CSV Export & Clipboard Copy"]
 ```
 
 ---
@@ -134,6 +143,7 @@ When downloading the Excel workbook (`/api/export.xlsx`), **all sheets** strictl
 - **Backend**: Python 3.10+, Django 5.2, Django REST Framework 3.18
 - **Authentication**: AllowAny for direct dashboard access, SimpleJWT available for token-based authentication
 - **Database**: PostgreSQL (`Vault_AI`)
+- **PDF & Document Processing**: `pypdfium2` (native high-resolution page rendering), `pypdf`
 - **AI OCR & Vision**:
   - **OpenAI Vision API**: `gpt-4o-mini` / `gpt-4o` with `detail: high`
   - **Google Gemini API**: `gemini-2.5-flash` / `gemini-1.5-flash` (fallback)
@@ -292,13 +302,13 @@ Fetches the list of uploaded screenshots and current background queue counts.
 ```
 
 #### `POST /api/screenshots`
-Uploads one or more screenshot files for instant Vision AI reading.
+Uploads one or more screenshot images or PDF documents for instant Vision AI reading. If a PDF is uploaded, every page is rendered at 2.0x scale into an individual high-resolution screenshot and processed independently.
 - **Content-Type**: `multipart/form-data`
-- **Body**: `files`: Image files (`.png`, `.jpg`, `.webp`, `.heic`)
+- **Body**: `files`: Image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.heic`, `.bmp`) or PDF files (`.pdf`)
 - **Response**: `201 Created`
 ```json
 {
-  "ids": [19, 20]
+  "ids": [19, 20, 21]
 }
 ```
 

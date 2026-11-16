@@ -6,6 +6,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from django.shortcuts import render
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
@@ -153,17 +154,61 @@ class ScreenshotsView(APIView):
         ids = []
         for f in files:
             orig_name = f.name or "screenshot.jpg"
-            screenshot = Screenshot.objects.create(
-                file=f,
-                original_name=orig_name,
-                filename=orig_name,
-                size=f.size,
-                origin="upload",
-                stage="received",
-            )
-            # Process screenshot and create job
-            process_screenshot(screenshot)
-            ids.append(screenshot.id)
+            is_pdf = orig_name.lower().endswith(".pdf") or getattr(f, "content_type", "") == "application/pdf"
+
+            if is_pdf:
+                # PDF upload: convert each page to a high-resolution screenshot image
+                try:
+                    import pypdfium2 as pdfium
+                    pdf_bytes = f.read()
+                    doc = pdfium.PdfDocument(pdf_bytes)
+                    num_pages = len(doc)
+                    base_name = os.path.splitext(orig_name)[0]
+
+                    for i, page in enumerate(doc, start=1):
+                        # Render at 2.0x scale (crisp ~144 DPI for Vision AI OCR)
+                        rendered_img = page.render(scale=2.0).to_pil()
+                        img_io = io.BytesIO()
+                        rendered_img.save(img_io, format="PNG")
+                        img_bytes = img_io.getvalue()
+
+                        page_orig_name = f"{base_name} (Page {i}).png" if num_pages > 1 else f"{base_name}.png"
+                        page_filename = f"{base_name}_p{i}.png" if num_pages > 1 else f"{base_name}.png"
+
+                        content_file = ContentFile(img_bytes, name=page_filename)
+                        screenshot = Screenshot.objects.create(
+                            file=content_file,
+                            original_name=page_orig_name,
+                            filename=page_filename,
+                            size=len(img_bytes),
+                            origin="upload",
+                            stage="received",
+                        )
+                        process_screenshot(screenshot)
+                        ids.append(screenshot.id)
+                except Exception as e:
+                    # If PDF conversion fails, record as failed screenshot
+                    screenshot = Screenshot.objects.create(
+                        file=f,
+                        original_name=orig_name,
+                        filename=orig_name,
+                        size=f.size,
+                        origin="upload",
+                        stage="failed",
+                        error=f"PDF Error: {str(e)}",
+                    )
+                    ids.append(screenshot.id)
+            else:
+                screenshot = Screenshot.objects.create(
+                    file=f,
+                    original_name=orig_name,
+                    filename=orig_name,
+                    size=f.size,
+                    origin="upload",
+                    stage="received",
+                )
+                process_screenshot(screenshot)
+                ids.append(screenshot.id)
 
         count_str = f"{len(ids)} screenshot{'s' if len(ids) > 1 else ''}"
         ActivityLog.objects.create(action="Upload", details=f"{count_str} uploaded")

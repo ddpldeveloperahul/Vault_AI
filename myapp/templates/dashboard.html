@@ -871,9 +871,9 @@ V.inbox = async () => {
   `<div class="panel"><div class="panel-b">
     <label class="dz" id="dz" for="fileIn">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-      <b>Drop job screenshots here, or click to choose</b>
-      <span class="muted small">PNG, JPG, WEBP or HEIC · up to ${500} files at a time · you can also paste an image with Ctrl+V</span>
-      <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp,image/heic,image/heif" multiple hidden>
+      <b>Drop job screenshots or PDF here, or click to choose</b>
+      <span class="muted small">PNG, JPG, WEBP, HEIC or PDF · up to ${500} files at a time · you can also paste an image with Ctrl+V</span>
+      <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,application/pdf,.pdf" multiple hidden>
     </label>
     <div id="upProg" class="row" style="margin-top:12px" hidden><span class="small muted" id="upTxt"></span><div class="progress"><i id="upBar" style="width:0"></i></div></div>
   </div></div>
@@ -1205,8 +1205,8 @@ function schedulePoll(busy) {
 
 /* ---------- uploads ---------- */
 function upload(files) {
-  files = [...files].filter(f => /^image\//.test(f.type) || /\.(png|jpe?g|webp|heic|heif|bmp|tiff)$/i.test(f.name));
-  if (!files.length) return toast('Choose PNG, JPG, WEBP or HEIC images', true);
+  files = [...files].filter(f => /^image\//.test(f.type) || f.type === 'application/pdf' || /\.(png|jpe?g|webp|heic|heif|bmp|tiff|pdf)$/i.test(f.name));
+  if (!files.length) return toast('Choose PNG, JPG, WEBP, HEIC images or PDF files', true);
   const fd = new FormData(); files.forEach(f => fd.append('files', f, f.name || 'pasted.png'));
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/screenshots');
