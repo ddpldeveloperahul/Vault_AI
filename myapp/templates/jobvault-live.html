@@ -1,0 +1,1095 @@
+<title>JobVault AI</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* JobVault AI — ink sidebar + working canvas; brass accent for actions; semantic colours for job state */
+:root{
+  --bg:#F1F3F6; --panel:#FFFFFF; --panel-2:#F6F7F9; --ink:#15202C; --muted:#5A6777; --line:#DCE1E8;
+  --accent:#9C6B12; --accent-ink:#FFFFFF; --accent-soft:#F5EAD3;
+  --side-bg:#15202C; --side-fg:#C9D2DD; --side-hi:#FFFFFF; --side-line:#26333F;
+  --ok:#24734A; --ok-soft:#DCF0E3; --warn:#9A5B00; --warn-soft:#FBEBCF; --bad:#A8281F; --bad-soft:#F8DEDB; --info:#235F8C; --info-soft:#DCEAF5;
+  --shadow:0 1px 2px rgba(21,32,44,.06),0 10px 30px rgba(21,32,44,.10);
+  --f-display:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D131A; --panel:#141C25; --panel-2:#18222D; --ink:#E5EAF0; --muted:#93A1B1; --line:#253240;
+  --accent:#D9A441; --accent-ink:#1A1206; --accent-soft:#3A2D14;
+  --side-bg:#090E14; --side-fg:#9EABBA; --side-hi:#FFFFFF; --side-line:#1B2530;
+  --ok:#62C48F; --ok-soft:#173826; --warn:#E8A93F; --warn-soft:#3B2B10; --bad:#F0847B; --bad-soft:#3F1E1B; --info:#7DB6E3; --info-soft:#152B3D;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D131A; --panel:#141C25; --panel-2:#18222D; --ink:#E5EAF0; --muted:#93A1B1; --line:#253240;
+  --accent:#D9A441; --accent-ink:#1A1206; --accent-soft:#3A2D14;
+  --side-bg:#090E14; --side-fg:#9EABBA; --side-hi:#FFFFFF; --side-line:#1B2530;
+  --ok:#62C48F; --ok-soft:#173826; --warn:#E8A93F; --warn-soft:#3B2B10; --bad:#F0847B; --bad-soft:#3F1E1B; --info:#7DB6E3; --info-soft:#152B3D;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+img{max-width:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em;line-height:1.2}
+h1{font-size:1.65rem} h2{font-size:1.08rem} h3{font-size:.95rem}
+p{margin:0}
+a{color:var(--info)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:.78rem}
+.label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+
+/* shell */
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100%}
+.side{background:var(--side-bg);color:var(--side-fg);padding:20px 14px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;flex:none}
+.brand b{display:block;font-family:var(--f-display);font-size:1.05rem}
+.side .brand b{color:var(--side-hi)}
+.brand small{font-size:.74rem;opacity:.8}
+.navgroup{display:flex;flex-direction:column;gap:2px}
+.navgroup .label{color:var(--side-fg);opacity:.7;padding:0 8px 6px}
+.nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;color:var(--side-fg);text-decoration:none;font-weight:500}
+.nav a:hover{background:var(--side-line);color:var(--side-hi)}
+.nav a.on{background:var(--side-line);color:var(--side-hi);box-shadow:inset 3px 0 0 var(--accent)}
+.nav svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7}
+.count{margin-left:auto;font-family:var(--f-mono);font-size:.72rem;background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:0 7px}
+.count.info{background:var(--info);color:var(--panel)}
+.side-foot{margin-top:auto;font-size:.74rem;border-top:1px solid var(--side-line);padding:12px 8px 0;line-height:1.7}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:var(--ok)}
+.dot.warn{background:var(--warn)} .dot.off{background:var(--muted)}
+.side-foot button{background:none;border:0;padding:0;color:var(--side-fg);text-decoration:underline;cursor:pointer;font-size:.74rem}
+
+.main{min-width:0;padding-block:24px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.head p{margin-top:4px;color:var(--muted);max-width:70ch}
+.eyebrow{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;display:block}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.spread{justify-content:space-between}
+
+/* controls */
+.btn{text-decoration:none;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:7px 13px;cursor:pointer;font-weight:600;font-size:.85rem;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;color:var(--ink);line-height:1.3}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:var(--panel)}
+.btn.bad{color:var(--bad)}
+.btn.sm{padding:4px 9px;font-size:.78rem}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.input,select.input,textarea.input{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:7px 10px;min-width:0;width:100%}
+.input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+textarea.input{resize:vertical}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--panel);padding:6px 11px;font-size:.8rem;font-weight:600;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--ink);color:var(--panel)}
+.fg{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fg > label{font-weight:600;font-size:.82rem}
+.hint{font-size:.75rem;color:var(--muted)}
+.err{color:var(--bad);font-size:.82rem}
+
+/* panels */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel-b{padding:16px}
+.grid{display:grid;gap:16px}
+.g-kpi{grid-template-columns:repeat(5,minmax(0,1fr))}
+.g-2{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
+.g-2e{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.kpi{padding:14px 16px;display:flex;flex-direction:column;gap:4px;text-decoration:none;color:inherit}
+.kpi .v{font-family:var(--f-display);font-size:1.8rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .d{font-size:.78rem;color:var(--muted)}
+a.kpi:hover{border-color:var(--muted)}
+.kpi.attn{background:var(--warn-soft);border-color:transparent}
+.kpi.attn .v{color:var(--warn)}
+.banner{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:6px;font-size:.85rem}
+.banner.info{background:var(--info-soft)} .banner.info b{color:var(--info)}
+.banner.warn{background:var(--warn-soft)} .banner.warn b{color:var(--warn)}
+.banner code{font-family:var(--f-mono);font-size:.8rem}
+
+.pill{text-decoration:none;display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;border-radius:20px;padding:2px 9px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-ok{color:var(--ok);background:var(--ok-soft)} .p-warn{color:var(--warn);background:var(--warn-soft)} .p-bad{color:var(--bad);background:var(--bad-soft)} .p-info{color:var(--info);background:var(--info-soft)} .p-mute{color:var(--muted);background:var(--panel-2)}
+.vault-tag{font-size:.74rem;font-weight:600;border:1px solid var(--line);border-radius:4px;padding:1px 7px;white-space:nowrap;background:var(--panel-2)}
+.src{font-size:.76rem;font-weight:600;white-space:nowrap}
+.src i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle;background:var(--muted)}
+
+/* bars & chart */
+.vbars{display:flex;flex-direction:column;gap:11px}
+.vbar{display:grid;grid-template-columns:140px minmax(0,1fr) 36px;gap:10px;align-items:center;font-size:.84rem}
+.vbar .track{height:10px;border-radius:5px;background:var(--panel-2);overflow:hidden;border:1px solid var(--line)}
+.vbar .fill{height:100%;background:var(--accent);border-radius:5px;min-width:2px}
+.vbar .n{text-align:right;font-family:var(--f-mono)}
+.spark{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;align-items:end;height:84px}
+.spark div{background:var(--accent);border-radius:3px 3px 0 0;min-height:2px;position:relative}
+.spark div.zero{background:var(--line)}
+.spark-x{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;font-size:.64rem;color:var(--muted);text-align:center;margin-top:4px;font-family:var(--f-mono)}
+
+/* table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--panel-2);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--panel-2)}
+td.t b{display:block;font-weight:600}
+td.t span{font-size:.78rem;color:var(--muted)}
+.conf{display:inline-flex;align-items:center;gap:7px;font-family:var(--f-mono);font-size:.78rem}
+.conf .m{width:38px;height:5px;background:var(--panel-2);border-radius:3px;overflow:hidden;border:1px solid var(--line)}
+.conf .m i{display:block;height:100%}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar .input{width:auto}
+.empty{padding:40px 16px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:6px;align-items:center}
+.empty b{color:var(--ink);font-size:.95rem}
+
+/* upload & pipeline */
+.dz{border:2px dashed var(--line);border-radius:var(--r);padding:30px 16px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;background:var(--panel-2);cursor:pointer;transition:border-color .15s,background .15s}
+.dz:hover,.dz.over{border-color:var(--accent);background:var(--accent-soft)}
+.dz svg{width:34px;height:34px;stroke:var(--accent);fill:none;stroke-width:1.6}
+.progress{height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden;border:1px solid var(--line);width:min(320px,100%)}
+.progress i{display:block;height:100%;background:var(--accent);transition:width .2s}
+.prow{display:grid;grid-template-columns:52px minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,1fr) auto;gap:14px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+.prow:last-child{border-bottom:0}
+.prow img,.prow .ph{width:52px;height:68px;object-fit:cover;border-radius:4px;border:1px solid var(--line);background:var(--panel-2)}
+.prow .fn{font-family:var(--f-mono);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.segs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.segs i{height:6px;border-radius:3px;background:var(--panel-2);border:1px solid var(--line)}
+.segs i.done{background:var(--ok);border-color:var(--ok)}
+.segs i.act{background:var(--accent);border-color:var(--accent);animation:pulse 1s infinite}
+.segs i.fail{background:var(--bad);border-color:var(--bad)}
+.stage-l{font-size:.72rem;color:var(--muted);margin-top:4px}
+@keyframes pulse{50%{opacity:.4}}
+
+/* review */
+.rcard{display:grid;grid-template-columns:300px minmax(0,1fr)}
+.rcard + .rcard{border-top:1px solid var(--line)}
+.rshot{padding:16px;background:var(--panel-2);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.shot-img{width:100%;max-height:440px;object-fit:contain;border-radius:6px;border:1px solid var(--line);background:var(--panel);cursor:zoom-in}
+.rbody{padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:.74rem;font-weight:600;color:var(--muted);display:flex;gap:6px;align-items:center}
+.field.flag .input{border-color:var(--warn);background:var(--warn-soft)}
+.field .ev{font-size:.72rem;color:var(--muted);font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field .ev.none{color:var(--warn)}
+.exp-pair{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center}
+.ocr{font-family:var(--f-mono);font-size:.74rem;white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;color:var(--muted);max-height:220px;overflow:auto;margin:0}
+details summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--muted)}
+
+/* drawer & lightbox */
+.scrim{position:fixed;inset:0;background:rgba(10,15,20,.5);z-index:40}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(780px,100%);background:var(--panel);z-index:41;display:flex;flex-direction:column;box-shadow:var(--shadow);border-left:1px solid var(--line);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.dh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.db{overflow-y:auto;padding:18px;display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start;flex:1}
+.df{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.kv .k{font-size:.72rem;font-weight:600;color:var(--muted)}
+.kv .v{font-weight:600}
+.lightbox{position:fixed;inset:0;z-index:50;background:rgba(5,8,12,.88);display:grid;place-items:center;padding:24px;cursor:zoom-out}
+.lightbox img{max-height:100%;max-width:100%;object-fit:contain;border-radius:6px}
+
+/* admin */
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.switch{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.switch:last-child{border-bottom:0}
+.switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:10px;background:var(--line);position:relative;cursor:pointer;flex:none;margin:2px 0 0;transition:background .15s}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--panel);transition:left .15s}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{left:18px}
+.switch input:disabled{opacity:.5}
+.switch b{display:block;font-size:.86rem}
+.switch span span{font-size:.78rem;color:var(--muted)}
+.tier{display:grid;grid-template-columns:28px minmax(0,1.4fr) minmax(0,1.3fr) auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.tier:last-child{border-bottom:0}
+.tier .order{font-family:var(--f-mono);font-size:.74rem;color:var(--muted);text-align:center}
+.tier .cond{display:flex;gap:6px;align-items:center;font-size:.82rem;white-space:nowrap}
+.tier .cond .input{width:70px;font-family:var(--f-mono)}
+.tester{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;align-self:start}
+.result{font-family:var(--f-display);font-size:1.25rem;font-weight:700;color:var(--accent)}
+.col-row{display:grid;grid-template-columns:30px minmax(0,1fr) 110px 100px 70px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.84rem}
+.col-row:last-child{border-bottom:0}
+.col-letter{font-family:var(--f-mono);background:var(--panel-2);border:1px solid var(--line);border-radius:4px;text-align:center;font-size:.75rem}
+.col-row .switch{padding:0;border:0}
+.mv{display:flex;gap:4px}
+.radio-card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:12px;cursor:pointer}
+.radio-card:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.radio-card input{margin-top:3px;accent-color:var(--accent)}
+.radio-card.off{opacity:.6;cursor:not-allowed}
+.integ{display:flex;gap:14px;align-items:flex-start;padding:16px}
+.integ + .integ{border-top:1px solid var(--line)}
+.integ .ic{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-family:var(--f-display);flex:none;color:#fff}
+.integ .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.steps{margin:6px 0 0;padding-left:18px;font-size:.8rem;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.steps code{font-family:var(--f-mono);font-size:.76rem;color:var(--ink)}
+.log .li{display:grid;grid-template-columns:150px 120px minmax(0,1fr);gap:12px;padding:9px 16px;border-bottom:1px solid var(--line);font-size:.84rem}
+.log .li:last-child{border-bottom:0}
+
+/* login & toasts */
+.login{min-height:100%;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.login-card{width:min(380px,100%);padding:24px;display:flex;flex-direction:column;gap:16px}
+.login-card .brand{padding:0}
+#toasts{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;width:max-content;max-width:calc(100% - 32px)}
+.toast{background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:6px;font-weight:600;font-size:.85rem;box-shadow:var(--shadow)}
+.toast.bad{background:var(--bad)}
+.skeleton{height:120px;border-radius:var(--r);background:linear-gradient(90deg,var(--panel-2),var(--line),var(--panel-2));background-size:200% 100%;animation:sk 1.2s infinite}
+@keyframes sk{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+@media (max-width:1100px){.g-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:sticky;top:0;height:auto;flex-direction:row;align-items:center;gap:12px;overflow-x:auto;z-index:20;padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
+  .brand small,.side-foot,.navgroup .label{display:none}
+  .navgroup{flex-direction:row}
+  .nav a{padding:6px 9px;white-space:nowrap}
+  .nav a.on{box-shadow:inset 0 -2px 0 var(--accent)}
+  .g-2,.g-2e,.g-3{grid-template-columns:minmax(0,1fr)}
+  .rcard{grid-template-columns:minmax(0,1fr)} .rshot{border-right:0;border-bottom:1px solid var(--line)}
+  .db{grid-template-columns:minmax(0,1fr)}
+  .prow{grid-template-columns:52px minmax(0,1fr) auto}
+  .prow .segwrap{grid-column:2/-1}
+  .prow .res{grid-column:2/-1}
+}
+@media (max-width:620px){
+  .g-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fields,.form-grid{grid-template-columns:minmax(0,1fr)}
+  .tier{grid-template-columns:24px minmax(0,1fr) auto}
+  .tier .cond{grid-column:2/-1}
+  .col-row{grid-template-columns:30px minmax(0,1fr) 70px}
+  .col-row .hide-s{display:none}
+  .vbar{grid-template-columns:110px minmax(0,1fr) 30px}
+  .log .li{grid-template-columns:minmax(0,1fr);gap:2px}
+  .toolbar .input{width:100%}
+  .side .brand b{white-space:nowrap;font-size:.95rem}
+  .shot-img{max-height:300px}
+  .drawer .shot-img{max-height:260px}
+}
+
+</style>
+
+<div class="app" id="app" hidden>
+  <aside class="side">
+    <div class="brand"><div class="brand-mark">JV</div><div><b>JobVault AI</b><small>Screenshot → Excel</small></div></div>
+    <nav class="navgroup nav" aria-label="Workspace">
+      <div class="label">Workspace</div>
+      <a href="#dashboard" data-v="dashboard"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</a>
+      <a href="#inbox" data-v="inbox"><svg viewBox="0 0 24 24"><path d="M4 13h4l2 3h4l2-3h4"/><path d="M5 5h14l1 8v6H4v-6z"/></svg>Screenshots<span class="count info" id="procCount" hidden>0</span></a>
+      <a href="#jobs" data-v="jobs"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 10h18M9 4v16"/></svg>Job sheet</a>
+      <a href="#vaults" data-v="vaults"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M15.5 12H17"/></svg>Vaults</a>
+      <a href="#review" data-v="review"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>Review queue<span class="count" id="revCount" hidden>0</span></a>
+    </nav>
+    <nav class="navgroup nav" aria-label="Admin">
+      <div class="label">Admin</div>
+      <a href="#rules" data-v="rules"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="17" cy="6" r="2"/><circle cx="14" cy="18" r="2"/></svg>Vault rules</a>
+      <a href="#columns" data-v="columns"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 9h16M10 9v10"/></svg>Sheet columns</a>
+      <a href="#ai" data-v="ai"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 12h4"/></svg>AI reading</a>
+      <a href="#integrations" data-v="integrations"><svg viewBox="0 0 24 24"><path d="M9 7H6a4 4 0 000 8h3M15 7h3a4 4 0 010 8h-3M8 11h8"/></svg>Integrations</a>
+      <a href="#activity" data-v="activity"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity log</a>
+    </nav>
+    <div class="side-foot" id="sideFoot"></div>
+  </aside>
+  <main class="main"><div class="wrap" id="view"></div></main>
+</div>
+
+<div class="login" id="login" hidden>
+  <form class="panel login-card" id="loginForm">
+    <div class="brand"><div class="brand-mark">JV</div><div><b>JobVault AI</b><small>Sign in to continue</small></div></div>
+    <div class="fg"><label for="pw">Admin password</label><input class="input" type="password" id="pw" autocomplete="current-password" required></div>
+    <p class="err" id="loginErr" hidden></p>
+    <button class="btn primary" type="submit">Sign in</button>
+  </form>
+</div>
+
+<div id="layer"></div>
+<div id="toasts"></div>
+
+<script>
+/* In-browser demo backend: answers the same /api routes as the Node server, with sample data. */
+(() => {
+'use strict';
+const SRCCOL = { WhatsApp: ['#075E54', '#E6DDD4', '#FFFFFF'], LinkedIn: ['#FFFFFF', '#F3F2EF', '#FFFFFF'], Telegram: ['#2A86C9', '#C9DDEB', '#FFFFFF'], Instagram: ['#C13584', '#1C1C1C', '#262626'] };
+const TITLES = { WhatsApp: 'Jobs Dehradun Group', LinkedIn: 'LinkedIn', Telegram: 'Remote Jobs Daily', Instagram: '@hiring.india' };
+const xml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+function shotSvg(app, text) {
+  const [bar, bg, bubble] = SRCCOL[app] || SRCCOL.WhatsApp;
+  const dark = app === 'Instagram';
+  const lines = []; text.split('\n').forEach(l => { while (l.length > 30) { const i = l.lastIndexOf(' ', 30) > 10 ? l.lastIndexOf(' ', 30) : 30; lines.push(l.slice(0, i)); l = l.slice(i).trim(); } lines.push(l); });
+  const h = 40 + lines.length * 24;
+  const barTxt = app === 'LinkedIn' ? '#0A66C2' : '#FFFFFF';
+  const t = lines.map((l, i) => `<text x="38" y="${132 + i * 24}" font-size="15" font-weight="${i === 0 || /^(role|\*)/i.test(l) ? 700 : 400}" fill="${dark ? '#FFFFFF' : '#111111'}">${xml(l)}</text>`).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640" viewBox="0 0 360 640" font-family="Arial,Helvetica,sans-serif">
+  <rect width="360" height="640" fill="${bg}"/><rect width="360" height="64" fill="${bar}"/>${app === 'LinkedIn' ? '<rect y="63" width="360" height="1" fill="#DDDDDD"/>' : ''}
+  <circle cx="34" cy="32" r="16" fill="${app === 'LinkedIn' ? '#0A66C2' : 'rgba(255,255,255,.35)'}"/>
+  <text x="60" y="38" font-size="16" font-weight="700" fill="${barTxt}">${xml(TITLES[app] || 'Chat')}</text>
+  <rect x="22" y="96" width="316" height="${h}" rx="12" fill="${bubble}"/>${t}
+  <text x="320" y="${96 + h - 10}" font-size="11" fill="#8696A0" text-anchor="end">16:41</text></svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+const DEMO = [
+  { app: 'LinkedIn', text: 'Northwind Analytics is hiring!\nRole: Senior Data Analyst\nLocation: Bengaluru (Hybrid)\nExperience: 5-8 years\nCTC: ₹18–24 LPA\nApply: careers.northwind.in/da-114', job: { title: 'Senior Data Analyst', company: 'Northwind Analytics', location: 'Bengaluru', country: 'India', exp_min: 5, exp_max: 8, salary: '₹18–24 LPA', work_mode: 'Hybrid', apply_contact: 'careers.northwind.in/da-114', confidence: 0.96 }, ev: { title: 'Senior Data Analyst', company: 'Northwind Analytics', location: 'Bengaluru', exp: '5-8 years', salary: '₹18–24 LPA', work_mode: 'Hybrid', apply_contact: 'careers.northwind.in/da-114' } },
+  { app: 'WhatsApp', text: '*Job Opening*\nCustomer Support Executive\nHimal BPO Services, Dehradun\nFreshers can apply\nSalary 2.8 - 3.6 LPA\nWalk-in: Rajpur Road, 10 AM', job: { title: 'Customer Support Executive', company: 'Himal BPO Services', location: 'Dehradun', country: 'India', exp_min: 0, exp_max: null, salary: '2.8 - 3.6 LPA', work_mode: 'Onsite', apply_contact: 'Walk-in: Rajpur Road', confidence: 0.92 }, ev: { title: 'Customer Support Executive', company: 'Himal BPO Services', location: 'Dehradun', exp: 'Freshers can apply', salary: 'Salary 2.8 - 3.6 LPA', work_mode: 'Walk-in', apply_contact: 'Walk-in: Rajpur Road' } },
+  { app: 'Telegram', text: 'Frontend Developer (React)\nLumen Stack · Remote, work from anywhere\n2-4 yrs experience\n$40-55k / yr\nlumenstack.io/jobs/fe', job: { title: 'Frontend Developer (React)', company: 'Lumen Stack', location: 'Remote', country: null, exp_min: 2, exp_max: 4, salary: '$40-55k / yr', work_mode: 'Remote', apply_contact: 'lumenstack.io/jobs/fe', confidence: 0.93 }, ev: { title: 'Frontend Developer (React)', company: 'Lumen Stack', location: 'Remote', exp: '2-4 yrs experience', salary: '$40-55k / yr', work_mode: 'Remote, work from anywhere', apply_contact: 'lumenstack.io/jobs/fe' } },
+  { app: 'LinkedIn', text: 'Sandline Retail is hiring\nMarketing Manager\nDubai, UAE\n7-10 years\nAED 22,000 / month\nsandline.ae/careers', job: { title: 'Marketing Manager', company: 'Sandline Retail', location: 'Dubai, UAE', country: 'UAE', exp_min: 7, exp_max: 10, salary: 'AED 22,000 / month', work_mode: null, apply_contact: 'sandline.ae/careers', confidence: 0.95 }, ev: { title: 'Marketing Manager', company: 'Sandline Retail', location: 'Dubai, UAE', exp: '7-10 years', salary: 'AED 22,000 / month', work_mode: null, apply_contact: 'sandline.ae/careers' } },
+  { app: 'Instagram', text: 'WE ARE HIRING\nContent Writer\nFreshers welcome!!\nSend CV - link in bio', job: { title: 'Content Writer', company: null, location: null, country: null, exp_min: 0, exp_max: null, salary: null, work_mode: null, apply_contact: 'link in bio', confidence: 0.6 }, ev: { title: 'Content Writer', company: null, location: null, exp: 'Freshers welcome', salary: null, work_mode: null, apply_contact: 'link in bio' } },
+  { app: 'WhatsApp', text: '*Urgent hiring*\nSales Manager - B2B\nVantage Polymers, Noida\nExp: 5 yr / 3 yr (unclear)\nCTC ₹8-10 LPA + incentives\nCall 99xxxx4471', job: { title: 'Sales Manager - B2B', company: 'Vantage Polymers', location: 'Noida', country: 'India', exp_min: null, exp_max: null, salary: '₹8-10 LPA + incentives', work_mode: null, apply_contact: '99xxxx4471', confidence: 0.64 }, ev: { title: 'Sales Manager - B2B', company: 'Vantage Polymers', location: 'Noida', exp: null, salary: '₹8-10 LPA + incentives', work_mode: null, apply_contact: 'Call 99xxxx4471' } },
+  { app: 'LinkedIn', text: 'Quickbasket - Head of Engineering\nMumbai\n12-16 years of experience\n₹70-90 LPA\nquickbasket.in/careers', job: { title: 'Head of Engineering', company: 'Quickbasket', location: 'Mumbai', country: 'India', exp_min: 12, exp_max: 16, salary: '₹70-90 LPA', work_mode: null, apply_contact: 'quickbasket.in/careers', confidence: 0.95 }, ev: { title: 'Head of Engineering', company: 'Quickbasket', location: 'Mumbai', exp: '12-16 years', salary: '₹70-90 LPA', work_mode: null, apply_contact: 'quickbasket.in/careers' } },
+  { app: 'Telegram', text: 'Crestview Consulting\nBusiness Analyst · Gurugram · Hybrid\n2-4 yrs\n₹9-12 LPA\ncrestview.co.in/ba', job: { title: 'Business Analyst', company: 'Crestview Consulting', location: 'Gurugram', country: 'India', exp_min: 2, exp_max: 4, salary: '₹9-12 LPA', work_mode: 'Hybrid', apply_contact: 'crestview.co.in/ba', confidence: 0.94 }, ev: { title: 'Business Analyst', company: 'Crestview Consulting', location: 'Gurugram', exp: '2-4 yrs', salary: '₹9-12 LPA', work_mode: 'Hybrid', apply_contact: 'crestview.co.in/ba' } },
+  { app: 'WhatsApp', text: '*Vacancy*\nAccounts Assistant\nDoon Valley Traders, Dehradun\nExp: 1-2 yrs (Tally)\nSalary 2.4 - 3 LPA\nCall 72xxxx1180', job: { title: 'Accounts Assistant', company: 'Doon Valley Traders', location: 'Dehradun', country: 'India', exp_min: 1, exp_max: 2, salary: '2.4 - 3 LPA', work_mode: null, apply_contact: '72xxxx1180', confidence: 0.93 }, ev: { title: 'Accounts Assistant', company: 'Doon Valley Traders', location: 'Dehradun', exp: 'Exp: 1-2 yrs', salary: 'Salary 2.4 - 3 LPA', work_mode: null, apply_contact: 'Call 72xxxx1180' } },
+  { app: 'LinkedIn', text: 'Harbourline Logistics\nSupply Chain Lead · Singapore\n8-12 years\nSGD 9,500 / month\nharbourline.sg/careers', job: { title: 'Supply Chain Lead', company: 'Harbourline Logistics', location: 'Singapore', country: 'Singapore', exp_min: 8, exp_max: 12, salary: 'SGD 9,500 / month', work_mode: null, apply_contact: 'harbourline.sg/careers', confidence: 0.94 }, ev: { title: 'Supply Chain Lead', company: 'Harbourline Logistics', location: 'Singapore', exp: '8-12 years', salary: 'SGD 9,500 / month', work_mode: null, apply_contact: 'harbourline.sg/careers' } },
+  { app: 'Telegram', text: 'Aksha AI\nMachine Learning Engineer\nHyderabad · Hybrid\n3-6 yrs · ₹22-30 LPA\naksha.ai/careers', job: { title: 'Machine Learning Engineer', company: 'Aksha AI', location: 'Hyderabad', country: 'India', exp_min: 3, exp_max: 6, salary: '₹22-30 LPA', work_mode: 'Hybrid', apply_contact: 'aksha.ai/careers', confidence: 0.95 }, ev: { title: 'Machine Learning Engineer', company: 'Aksha AI', location: 'Hyderabad', exp: '3-6 yrs', salary: '₹22-30 LPA', work_mode: 'Hybrid', apply_contact: 'aksha.ai/careers' } },
+  { app: 'WhatsApp', text: '*Hiring*\nOperations Executive\nTarang Foods, Haridwar\nExp: 1-3 yrs\nCTC: 3.5 (per month? year?)\njobs@tarangfoods.in', job: { title: 'Operations Executive', company: 'Tarang Foods', location: 'Haridwar', country: 'India', exp_min: 1, exp_max: 3, salary: null, work_mode: null, apply_contact: 'jobs@tarangfoods.in', confidence: 0.72 }, ev: { title: 'Operations Executive', company: 'Tarang Foods', location: 'Haridwar', exp: 'Exp: 1-3 yrs', salary: null, work_mode: null, apply_contact: 'jobs@tarangfoods.in' } },
+];
+
+/* ---------- state ---------- */
+const DEF = {
+  ai: { provider: 'mock', threshold: 80, strict: true, dedupe: true, dedupeDays: 30, extraInstructions: '' },
+  rules: { homeCountry: 'India', remoteVault: 'Remote', globalVault: 'Global', tiers: [{ name: 'India · Fresher', below: 2 }, { name: 'India · Junior', below: 5 }, { name: 'India · Mid-level', below: 10 }, { name: 'India · Senior', below: null }] },
+  columns: [['title', 'Job Title', 1], ['company', 'Company', 1], ['location', 'Location', 1], ['experience', 'Experience', 1], ['salary', 'Salary / CTC', 0], ['work_mode', 'Work Mode', 0], ['vault', 'Vault', 0], ['source_app', 'Source', 0], ['apply_contact', 'Apply Link / Contact', 0], ['created_at', 'Date Received', 0], ['screenshot', 'Screenshot Link', 0]].map(([key, label, r]) => ({ key, label, required: !!r, enabled: true })),
+};
+const st = { settings: structuredClone(DEF), shots: [], jobs: [], log: [], sid: 0, jid: 1040 };
+const ts = (d = new Date()) => d.toISOString().slice(0, 19).replace('T', ' ');
+const ago = (days, mins = 0) => new Date(Date.now() - days * 864e5 - mins * 6e4);
+const log = (actor, message, at = new Date()) => st.log.unshift({ id: st.log.length + 1, at: ts(at), actor, message });
+const vaultNames = () => { const r = st.settings.rules; return [...r.tiers.map(t => t.name), r.globalVault, r.remoteVault]; };
+const reqFields = () => st.settings.columns.filter(c => c.required).map(c => c.key === 'experience' ? 'exp_min' : c.key).filter(k => ['title', 'company', 'location', 'exp_min', 'salary', 'work_mode', 'apply_contact'].includes(k));
+function classify(j, r = st.settings.rules) {
+  if ((j.work_mode || '').toLowerCase() === 'remote') return r.remoteVault;
+  const c = (j.country || '').trim();
+  if (c && c.toLowerCase() !== r.homeCountry.toLowerCase()) return r.globalVault;
+  for (const t of r.tiers) { if (t.below == null) return t.name; if (j.exp_min == null || j.exp_min < t.below) return t.name; }
+  return r.tiers[r.tiers.length - 1].name;
+}
+const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const fp = j => j.title ? [norm(j.title), norm(j.company), norm(j.apply_contact || j.location)].join('|') : null;
+const expText = j => j.exp_min == null && j.exp_max == null ? '' : j.exp_min === 0 && j.exp_max == null ? 'Fresher' : j.exp_max == null ? `${j.exp_min}+ yrs` : `${j.exp_min ?? 0}–${j.exp_max} yrs`;
+
+function makeJob(shot, d) {
+  const flags = reqFields().filter(f => d.job[f] == null);
+  const confidence = Math.max(0, +(d.job.confidence - 0.12 * flags.length).toFixed(3));
+  const f = fp(d.job);
+  const dup = st.settings.ai.dedupe && f ? st.jobs.find(x => x.fingerprint === f && ['synced', 'review'].includes(x.status)) : null;
+  const status = dup ? 'duplicate' : flags.length || confidence * 100 < st.settings.ai.threshold ? 'review' : 'synced';
+  const j = { id: ++st.jid, screenshot_id: shot.id, ...d.job, confidence, source_app: d.app, evidence: Object.fromEntries(Object.entries(d.ev).filter(([, v]) => v)), flags, status, duplicate_of: dup ? dup.id : null, fingerprint: f, created_at: shot.created_at, updated_at: shot.created_at };
+  delete j.confidence_; j.vault = classify(j);
+  st.jobs.push(j); shot.job_count = 1;
+  return j;
+}
+function newShot(name, image, at = new Date(), origin = 'upload') {
+  const s = { id: ++st.sid, filename: name, original_name: name, image, origin, source_app: null, stage: 'received', error: null, raw_text: null, job_count: 0, created_at: ts(at) };
+  st.shots.push(s); return s;
+}
+
+/* seed: two weeks of history */
+const seedPlan = [[13, 0], [12, 3], [11, 1], [10, 7], [9, 2], [8, 9], [7, 6], [6, 0], [5, 11], [4, 10], [3, 4], [2, 3], [1, 5], [0, 8]];
+seedPlan.forEach(([dAgo, i], n) => {
+  const d = DEMO[i]; const at = ago(dAgo, 600 - n * 17);
+  const s = newShot(`IMG-2026${String(11).padStart(2, '0')}${String(Math.max(1, 6 - dAgo)).padStart(2, '0')}-WA${String(100 + n * 7).padStart(4, '0')}.jpg`, shotSvg(d.app, d.text), at);
+  s.stage = 'saved'; s.source_app = d.app; s.raw_text = d.text; s.processed_at = s.created_at;
+  const j = makeJob(s, d);
+  log(j.status === 'duplicate' ? 'Dedupe' : j.status === 'review' ? 'Verification' : 'Sorter', j.status === 'duplicate' ? `JV-${j.id} ${j.title} matches JV-${j.duplicate_of} · skipped` : j.status === 'review' ? `JV-${j.id} ${j.title} sent to review: ${j.flags.join(', ') || 'low confidence'}` : `JV-${j.id} ${j.title} → ${j.vault}`, at);
+});
+log('System', 'Server started · AI reader: mock');
+
+/* pipeline simulation */
+const STAGES = ['received', 'reading', 'verifying', 'sorting'];
+function process(s) {
+  let i = 0;
+  const step = () => {
+    if (!st.shots.includes(s)) return;
+    if (i < STAGES.length) { s.stage = STAGES[i++]; setTimeout(step, 700 + Math.random() * 900); return; }
+    let h = 0; for (const c of s.original_name + s.size) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const d = DEMO[h % DEMO.length];
+    s.raw_text = d.text; s.source_app = d.app; s.stage = 'saved'; s.processed_at = ts();
+    const j = makeJob(s, d);
+    log(j.status === 'duplicate' ? 'Dedupe' : j.status === 'review' ? 'Verification' : 'Sorter', j.status === 'duplicate' ? `JV-${j.id} ${j.title} matches JV-${j.duplicate_of} · skipped` : j.status === 'review' ? `JV-${j.id} ${j.title} sent to review: ${j.flags.join(', ') || 'low confidence'}` : `JV-${j.id} ${j.title} → ${j.vault}`);
+  };
+  setTimeout(step, 300 + Math.random() * 600);
+}
+const queue = () => { const w = st.shots.filter(s => s.stage !== 'saved' && s.stage !== 'failed'); return { queued: w.filter(s => s.stage === 'received').length, running: w.filter(s => s.stage !== 'received').length }; };
+
+/* ---------- routes ---------- */
+const shot = id => st.shots.find(s => s.id === +id);
+const shape = j => { const s = shot(j.screenshot_id); return { ...j, code: `JV-${j.id}`, experience: expText(j), image: s?.image || null, original_name: s?.original_name, raw_text: s?.raw_text, filename: s?.filename, evidence: { ...j.evidence }, flags: [...j.flags] }; };
+function list(q) {
+  return st.jobs.filter(j => (q.status && q.status !== 'all' ? j.status === q.status : j.status !== 'rejected')
+    && (!q.vault || q.vault === 'all' || j.vault === q.vault) && (!q.source || q.source === 'all' || j.source_app === q.source)
+    && (!q.q || [j.title, j.company, j.location, j.salary].join(' ').toLowerCase().includes(q.q.toLowerCase()))).sort((a, b) => b.id - a.id).map(shape);
+}
+const ERR = (status, error, extra) => ({ status, body: { error, ...extra } });
+const EDIT = ['title', 'company', 'location', 'country', 'exp_min', 'exp_max', 'salary', 'work_mode', 'apply_contact', 'source_app'];
+function edit(j, b) {
+  for (const k of EDIT) {
+    if (!(k in b)) continue;
+    let v = b[k];
+    if (k === 'exp_min' || k === 'exp_max') { v = v === '' || v == null ? null : Number(v); if (v != null && (isNaN(v) || v < 0 || v > 60)) throw new Error('Experience must be a number of years between 0 and 60'); }
+    else v = v == null || String(v).trim() === '' ? null : String(v).trim();
+    j[k] = v;
+  }
+  j.flags = j.flags.filter(f => j[f] == null); reqFields().forEach(f => { if (j[f] == null && !j.flags.includes(f)) j.flags.push(f); });
+  j.vault = b.vault && vaultNames().includes(b.vault) ? b.vault : classify(j);
+  j.fingerprint = fp(j); j.updated_at = ts();
+}
+const PROMPT = 'You are reading ONE screenshot of a job post shared on WhatsApp, Telegram, Instagram or LinkedIn.\n\nStep 1. Transcribe ALL readable text in the image into "raw_text", exactly as written.\nStep 2. From raw_text ONLY, extract every job post into "jobs".\n\nRules:\n- Use only words that appear in raw_text. Do not guess or fill gaps.\n- If a field is missing, cut off, blurred or ambiguous, return null.\n- For each field you fill, put the exact words you used into evidence.<field>.\n- exp_min / exp_max are years ("Freshers" = 0).\n- work_mode is Onsite, Hybrid, Remote, or null when not stated.\n- If the image is not a job post, set not_a_job to true.\n\nReturn JSON only.';
+
+function route(method, path, q, body) {
+  let m;
+  if (path === '/health') return { ok: true, provider: 'mock', authRequired: false };
+  if (path === '/login') return { token: 'open', open: true };
+  if (path === '/stats') {
+    const by = s => st.jobs.filter(j => j.status === s).length;
+    const today = ts().slice(0, 10), weekAgo = ts(ago(7));
+    const byVault = Object.fromEntries(vaultNames().map(v => [v, st.jobs.filter(j => j.status === 'synced' && j.vault === v).length]));
+    const srcs = {}; st.jobs.filter(j => j.status !== 'rejected').forEach(j => srcs[j.source_app] = (srcs[j.source_app] || 0) + 1);
+    const days = {}; st.jobs.filter(j => j.status === 'synced').forEach(j => { const d = j.created_at.slice(0, 10); days[d] = (days[d] || 0) + 1; });
+    return { screenshots: st.shots.length, screenshotsWeek: st.shots.filter(s => s.created_at >= weekAgo).length, inSheet: by('synced'), addedToday: st.jobs.filter(j => j.status === 'synced' && j.created_at.startsWith(today)).length,
+      review: by('review'), duplicates: by('duplicate'), failed: st.shots.filter(s => s.stage === 'failed').length, processing: st.shots.filter(s => !['saved', 'failed'].includes(s.stage)).length,
+      byVault, bySource: Object.entries(srcs).map(([source, n]) => ({ source, n })).sort((a, b) => b.n - a.n), days: Object.entries(days).map(([d, n]) => ({ d, n })),
+      recent: list({}).slice(0, 8), provider: 'mock', threshold: st.settings.ai.threshold, queue: queue() };
+  }
+  if (path === '/screenshots' && method === 'GET') return { items: [...st.shots].sort((a, b) => b.id - a.id).slice(0, +(q.limit || 60)).map(s => ({ ...s, jobs: st.jobs.filter(j => j.screenshot_id === s.id).map(j => ({ id: j.id, code: `JV-${j.id}`, status: j.status })) })), queue: queue() };
+  if (path === '/screenshots' && method === 'POST') {
+    const ids = body.map(f => { const s = newShot(f.name, f.url); s.size = f.size; process(s); return s.id; });
+    log('Upload', `${ids.length} screenshot${ids.length > 1 ? 's' : ''} uploaded`);
+    return { status: 201, body: { ids } };
+  }
+  if ((m = path.match(/^\/screenshots\/(\d+)\/retry$/))) { const s = shot(m[1]); st.jobs = st.jobs.filter(j => j.screenshot_id !== s.id || j.status === 'synced'); s.stage = 'received'; process(s); return { ok: true }; }
+  if ((m = path.match(/^\/screenshots\/(\d+)$/)) && method === 'DELETE') { st.jobs = st.jobs.filter(j => j.screenshot_id !== +m[1] || j.status === 'synced'); st.shots = st.shots.filter(s => s.id !== +m[1]); return { ok: true }; }
+  if (path === '/jobs') return { items: list(q).slice(0, +(q.limit || 1000)) };
+  if ((m = path.match(/^\/jobs\/(\d+)(?:\/(approve|reject|restore))?$/))) {
+    const j = st.jobs.find(x => x.id === +m[1]); if (!j) return ERR(404, 'Job not found');
+    try {
+      if (!m[2] && method === 'GET') return shape(j);
+      if (!m[2] && method === 'PUT') { edit(j, body || {}); return shape(j); }
+      if (!m[2] && method === 'DELETE') { st.jobs = st.jobs.filter(x => x !== j); return { ok: true }; }
+      if (m[2] === 'approve') {
+        edit(j, body || {});
+        const missing = reqFields().filter(f => j[f] == null);
+        if (missing.length) { const n = { exp_min: 'experience', apply_contact: 'apply link', work_mode: 'work mode' }; return ERR(400, `Fill in ${missing.map(x => n[x] || x).join(', ')} before approving`, { missing }); }
+        j.status = 'synced'; j.flags = []; j.confidence = Math.max(j.confidence, 0.99); log('Review', `JV-${j.id} ${j.title} approved → ${j.vault}`); return shape(j);
+      }
+      if (m[2] === 'reject') { j.status = 'rejected'; log('Review', `JV-${j.id} ${j.title || ''} rejected`); return { ok: true }; }
+      if (m[2] === 'restore') { j.status = 'review'; j.duplicate_of = null; log('Review', `JV-${j.id} moved back to review`); return shape(j); }
+    } catch (e) { return ERR(400, e.message); }
+  }
+  if (path === '/settings') return { ...structuredClone(st.settings), providers: { gemini: { configured: false, model: 'gemini-2.5-flash' }, openai: { configured: false, model: 'gpt-4o-mini' }, mock: { configured: true, model: 'Demo data (no AI key)' } }, vaults: vaultNames(), prompt: PROMPT + (st.settings.ai.extraInstructions ? `\n\nAdditional instructions from the admin:\n${st.settings.ai.extraInstructions}` : '') };
+  if (path === '/settings/ai') {
+    const a = st.settings.ai;
+    if (body.provider && body.provider !== 'mock') return ERR(400, 'This online demo uses sample data. Real AI reading works in the installed version with a Gemini or OpenAI key.');
+    if ('threshold' in body) a.threshold = +body.threshold; if ('dedupeDays' in body) { if (!(body.dedupeDays >= 1 && body.dedupeDays <= 365)) return ERR(400, 'Duplicate window must be 1–365 days'); a.dedupeDays = +body.dedupeDays; }
+    ['strict', 'dedupe'].forEach(k => { if (k in body) a[k] = !!body[k]; }); if ('extraInstructions' in body) a.extraInstructions = String(body.extraInstructions || '');
+    log('Admin', `AI settings saved · auto-approve at ${a.threshold}%`); return a;
+  }
+  if (path === '/settings/rules') {
+    const r = body; r.tiers = (r.tiers || []).map((t, i, a) => ({ name: String(t.name || '').trim(), below: i === a.length - 1 ? null : t.below === '' || t.below == null ? NaN : Number(t.below) }));
+    ['homeCountry', 'remoteVault', 'globalVault'].forEach(k => r[k] = String(r[k] || '').trim());
+    if (!r.homeCountry || !r.remoteVault || !r.globalVault) return ERR(400, 'Home country, remote vault and global vault names are required');
+    let prev = -Infinity;
+    for (let i = 0; i < r.tiers.length - 1; i++) { const t = r.tiers[i]; if (!t.name) return ERR(400, `Tier ${i + 1} needs a name`); if (isNaN(t.below)) return ERR(400, `Tier "${t.name}" needs a number of years`); if (t.below <= prev) return ERR(400, 'Each experience limit must be higher than the one above it'); prev = t.below; }
+    const names = [...r.tiers.map(t => t.name), r.globalVault, r.remoteVault]; if (names.some(n => !n)) return ERR(400, 'Every vault needs a name'); if (new Set(names.map(n => n.toLowerCase())).size !== names.length) return ERR(400, 'Vault names must be unique');
+    st.settings.rules = r; let moved = 0; st.jobs.forEach(j => { const v = classify(j); if (v !== j.vault) { j.vault = v; moved++; } });
+    log('Admin', `Vault rules updated · ${moved} job${moved === 1 ? '' : 's'} re-sorted`); return { rules: r, moved };
+  }
+  if (path === '/rules/test') return { vault: classify({ country: body.country, work_mode: body.work_mode, exp_min: body.exp_min === '' || body.exp_min == null ? null : Number(body.exp_min) }) };
+  if (path === '/settings/columns') { st.settings.columns = body.map(c => ({ ...c, enabled: !!c.enabled || !!c.required })); log('Admin', 'Sheet columns updated'); return st.settings.columns; }
+  if (path === '/integrations') return { google: { credentials: false, drive: { enabled: false, pollMinutes: 5, lastSync: null }, sheets: { enabled: false, url: null } }, providers: route('GET', '/settings', {}, {}).providers, active: 'mock' };
+  if (path === '/activity') return { items: st.log.slice(0, 300) };
+  return ERR(404, 'Not found');
+}
+
+const readFiles = fd => Promise.all(fd.getAll('files').map(f => new Promise(res => { const r = new FileReader(); r.onload = () => res({ name: f.name || 'pasted.png', size: f.size, url: r.result }); r.readAsDataURL(f); })));
+async function handle(method, url, rawBody) {
+  const u = new URL(url, 'https://demo.local');
+  const path = u.pathname.replace(/^\/api/, '');
+  let body = rawBody;
+  if (rawBody instanceof FormData) body = await readFiles(rawBody);
+  else if (typeof rawBody === 'string' && rawBody) body = JSON.parse(rawBody);
+  await new Promise(r => setTimeout(r, 60));
+  const out = route(method, path, Object.fromEntries(u.searchParams), body || {});
+  const status = out && out.status && out.body ? out.status : 200;
+  return { status, body: out && out.status && out.body ? out.body : out };
+}
+const isApi = url => typeof url === 'string' && url.startsWith('/api');
+const realFetch = window.fetch.bind(window);
+window.fetch = async (url, opts = {}) => {
+  if (!isApi(url)) return realFetch(url, opts);
+  const r = await handle((opts.method || 'GET').toUpperCase(), url, opts.body);
+  return new Response(JSON.stringify(r.body), { status: r.status, headers: { 'Content-Type': 'application/json' } });
+};
+const RealXHR = window.XMLHttpRequest;
+window.XMLHttpRequest = function () {
+  const x = { upload: {}, status: 0, responseText: '', setRequestHeader() {},
+    open(m, u) { this._m = m; this._u = u; if (!isApi(u)) { const r = new RealXHR(); r.open(m, u); Object.assign(this, { _real: r }); } },
+    send(body) {
+      if (this._real) return this._real.send(body);
+      setTimeout(() => this.upload.onprogress?.({ lengthComputable: true, loaded: 1, total: 1 }), 80);
+      handle(this._m, this._u, body).then(r => { this.status = r.status; this.responseText = JSON.stringify(r.body); this.onload?.(); }).catch(() => this.onerror?.());
+    } };
+  return x;
+};
+// Downloads cannot run inside this page; explain instead of navigating away.
+document.addEventListener('click', e => {
+  const a = e.target.closest('#xlsxBtn,#csvBtn,a[href^="/api"]');
+  if (!a) return;
+  e.preventDefault(); e.stopPropagation();
+  const t = document.createElement('div'); t.className = 'toast';
+  t.textContent = 'Excel and CSV download work in the installed version. Use Copy for Excel here.';
+  document.getElementById('toasts').appendChild(t); setTimeout(() => t.remove(), 4000);
+}, true);
+})();
+
+</script>
+<script>
+/* JobVault AI — frontend. Talks to the REST API in /api. No build step. */
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const SRC = { WhatsApp: '#25A35A', LinkedIn: '#0A66C2', Telegram: '#2A86C9', Instagram: '#D6336C', Other: '#7A8696' };
+const FIELD_NAMES = { title: 'job title', company: 'company', location: 'location', exp_min: 'experience', salary: 'salary', work_mode: 'work mode', apply_contact: 'apply link' };
+const STAGES = ['received', 'reading', 'verifying', 'sorting', 'saved'];
+const STAGE_LABEL = { received: 'Waiting in queue', reading: 'AI is reading the image', verifying: 'Checking every value against the text', sorting: 'Skipping duplicates, sorting to vault', saved: 'Done', failed: 'Failed' };
+
+/* ---------- state ---------- */
+const S = { token: null, settings: null, stats: null, jobFilter: { q: '', vault: 'all', status: 'all', source: 'all' }, jobs: [], pollTimer: null };
+try { S.token = localStorage.getItem('jv_token'); } catch {}
+
+/* ---------- api ---------- */
+async function api(path, opts = {}) {
+  const headers = { ...(opts.body && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...(S.token ? { Authorization: `Bearer ${S.token}` } : {}) };
+  const res = await fetch(`/api${path}`, { ...opts, headers, body: opts.body && !(opts.body instanceof FormData) ? JSON.stringify(opts.body) : opts.body });
+  if (res.status === 401 && path !== '/login') { showLogin(); throw new Error('Please sign in'); }
+  const data = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
+  if (!res.ok) { const e = new Error(data?.error || `Request failed (${res.status})`); e.data = data; throw e; }
+  return data;
+}
+const withT = url => S.token && S.token !== 'open' ? `${url}${url.includes('?') ? '&' : '?'}t=${encodeURIComponent(S.token)}` : url;
+
+/* ---------- ui helpers ---------- */
+function toast(msg, bad) {
+  const t = document.createElement('div'); t.className = 'toast' + (bad ? ' bad' : ''); t.textContent = msg;
+  $('#toasts').appendChild(t); setTimeout(() => t.remove(), bad ? 5000 : 2800);
+}
+const fail = e => toast(e.message || String(e), true);
+const when = s => { if (!s) return ''; const d = new Date(s.replace(' ', 'T') + 'Z'); return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+const day = s => { const d = new Date(s + 'T00:00:00'); return d.toLocaleDateString('en-IN', { day: '2-digit' }); };
+const pill = st => ({ synced: '<span class="pill p-ok">In sheet</span>', review: '<span class="pill p-warn">Needs review</span>', duplicate: '<span class="pill p-mute">Duplicate</span>', rejected: '<span class="pill p-bad">Rejected</span>' }[st] || '');
+const src = s => `<span class="src"><i style="background:${SRC[s] || SRC.Other}"></i>${esc(s || 'Other')}</span>`;
+function conf(c) {
+  const p = Math.round((c || 0) * 100), th = S.settings?.ai?.threshold ?? 80;
+  const col = p >= th ? 'var(--ok)' : p >= 60 ? 'var(--warn)' : 'var(--bad)';
+  return `<span class="conf" title="AI confidence"><span class="m"><i style="width:${p}%;background:${col}"></i></span>${p}%</span>`;
+}
+const head = (eyebrow, h, p, actions = '') => `<div class="head"><div>${eyebrow ? `<span class="eyebrow">${eyebrow}</span>` : ''}<h1>${h}</h1>${p ? `<p>${p}</p>` : ''}</div><div class="row">${actions}</div></div>`;
+const IC = {
+  up: '<svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>',
+  sync: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 00-14-5L4 8M4 4v4h4M4 13a8 8 0 0014 5l2-2M20 20v-4h-4"/></svg>',
+  copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V4H4v12h4"/></svg>',
+  dl: '<svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>',
+};
+const vaults = () => S.settings?.vaults || [];
+
+/* ---------- auth ---------- */
+function showLogin() { $('#app').hidden = true; $('#login').hidden = false; setTimeout(() => $('#pw').focus(), 50); }
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault(); $('#loginErr').hidden = true;
+  try {
+    const r = await api('/login', { method: 'POST', body: { password: $('#pw').value } });
+    S.token = r.token; try { localStorage.setItem('jv_token', r.token); } catch {}
+    $('#login').hidden = true; boot();
+  } catch (err) { $('#loginErr').textContent = err.message; $('#loginErr').hidden = false; }
+});
+function signOut() { S.token = null; try { localStorage.removeItem('jv_token'); } catch {} showLogin(); }
+
+/* ---------- views ---------- */
+const V = {};
+
+V.dashboard = async () => {
+  const s = S.stats = await api('/stats');
+  const mx = Math.max(1, ...Object.values(s.byVault));
+  const totalSrc = s.bySource.reduce((a, b) => a + b.n, 0) || 1;
+  const days = [];
+  for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); const k = d.toISOString().slice(0, 10); days.push({ k, n: s.days.find(x => x.d === k)?.n || 0 }); }
+  const dmx = Math.max(1, ...days.map(d => d.n));
+  const hr = new Date().getHours();
+  return head('', hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening',
+    'Job screenshots are read by AI, checked against the text in the image, sorted into vaults and added to your job sheet.',
+    `<a class="btn" href="#jobs">${IC.dl}Export to Excel</a><a class="btn primary" href="#inbox">${IC.up}Add screenshots</a>`) +
+  (s.provider === 'mock' ? `<div class="banner warn"><b>Online demo</b><span>This page runs in your browser with sample data, so any screenshot you add gets a sample job. The installed version reads real screenshots with Gemini or OpenAI and saves to a database.</span></div>` : '') +
+  (s.processing ? `<div class="banner info"><b>${s.processing} screenshot${s.processing > 1 ? 's' : ''} processing</b><span>This page updates by itself. <a href="#inbox">See progress</a></span></div>` : '') +
+  `<div class="grid g-kpi">
+    <a class="panel kpi" href="#inbox"><span class="label">Screenshots this week</span><span class="v">${s.screenshotsWeek}</span><span class="d">${s.screenshots} in total</span></a>
+    <a class="panel kpi" href="#jobs"><span class="label">Jobs in sheet</span><span class="v">${s.inSheet}</span><span class="d">${s.addedToday} added today</span></a>
+    <a class="panel kpi ${s.review ? 'attn' : ''}" href="#review"><span class="label">Needs your review</span><span class="v">${s.review}</span><span class="d">Unclear or below ${s.threshold}% confidence</span></a>
+    <div class="panel kpi"><span class="label">Duplicates skipped</span><span class="v">${s.duplicates}</span><span class="d">Same job shared again</span></div>
+    <a class="panel kpi" href="#inbox"><span class="label">Failed to read</span><span class="v" style="${s.failed ? 'color:var(--bad)' : ''}">${s.failed}</span><span class="d">${s.failed ? 'Open to retry' : 'Nothing failed'}</span></a>
+  </div>
+  <div class="grid g-2">
+    <div class="panel"><div class="panel-h"><h2>Latest jobs</h2><a class="btn sm ghost" href="#jobs">Open job sheet</a></div>
+      ${s.recent.length ? `<div class="tbl-wrap"><table><thead><tr><th>Job</th><th>Vault</th><th>Source</th><th>Status</th></tr></thead><tbody>
+      ${s.recent.map(j => `<tr class="click" data-open="${j.id}"><td class="t"><b>${esc(j.title || 'Untitled')}</b><span>${esc(j.company || 'Company unclear')} · ${esc(j.location || 'Location unclear')}</span></td><td><span class="vault-tag">${esc(j.vault)}</span></td><td>${src(j.source_app)}</td><td>${pill(j.status)}</td></tr>`).join('')}
+      </tbody></table></div>` : `<div class="empty"><b>No jobs yet</b><span>Add your first screenshots and they will appear here.</span><a class="btn primary" href="#inbox" style="margin-top:6px">${IC.up}Add screenshots</a></div>`}
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="panel"><div class="panel-h"><h2>Jobs per vault</h2><a class="btn sm ghost" href="#vaults">Open vaults</a></div><div class="panel-b vbars">
+        ${vaults().map(v => `<div class="vbar"><span>${esc(v)}</span><div class="track"><div class="fill" style="width:${s.byVault[v] / mx * 100}%"></div></div><span class="n">${s.byVault[v] || 0}</span></div>`).join('')}
+      </div></div>
+      <div class="panel"><div class="panel-h"><h2>Jobs added, last 14 days</h2></div><div class="panel-b">
+        <div class="spark">${days.map(d => `<div class="${d.n ? '' : 'zero'}" style="height:${Math.max(2, d.n / dmx * 100)}%" title="${d.k}: ${d.n}"></div>`).join('')}</div>
+        <div class="spark-x">${days.map(d => `<span>${day(d.k)}</span>`).join('')}</div>
+      </div></div>
+      <div class="panel"><div class="panel-h"><h2>Where jobs come from</h2></div><div class="panel-b vbars">
+        ${s.bySource.length ? s.bySource.map(x => `<div class="vbar"><span>${src(x.source)}</span><div class="track"><div class="fill" style="width:${x.n / totalSrc * 100}%;background:${SRC[x.source] || SRC.Other}"></div></div><span class="n">${x.n}</span></div>`).join('') : '<span class="muted">Sources appear after the first screenshots.</span>'}
+      </div></div>
+    </div>
+  </div>`;
+};
+
+V.inbox = async () => {
+  const d = await api('/screenshots?limit=100');
+  const google = (await api('/integrations')).google;
+  return head('', 'Screenshots', `Add as many screenshots as you like. Each one is read on its own, so there is no 10–20 image limit and no need to make PDFs.${google.drive.enabled ? ' New files in your Google Drive folder are picked up automatically.' : ''}`,
+    google.drive.enabled ? `<button class="btn" data-act="drive">${IC.sync}Check Google Drive now</button>` : '') +
+  `<div class="panel"><div class="panel-b">
+    <label class="dz" id="dz" for="fileIn">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <b>Drop job screenshots here, or click to choose</b>
+      <span class="muted small">PNG, JPG, WEBP or HEIC · up to ${500} files at a time · you can also paste an image with Ctrl+V</span>
+      <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp,image/heic,image/heif" multiple hidden>
+    </label>
+    <div id="upProg" class="row" style="margin-top:12px" hidden><span class="small muted" id="upTxt"></span><div class="progress"><i id="upBar" style="width:0"></i></div></div>
+  </div></div>
+  <div class="panel"><div class="panel-h"><h2>Recent screenshots</h2><span class="muted small" id="qInfo">${d.queue.queued + d.queue.running ? `${d.queue.running} reading now · ${d.queue.queued} waiting` : 'Queue is empty'}</span></div>
+    <div id="shotList">${shotRows(d.items)}</div></div>`;
+};
+function shotRows(items) {
+  if (!items.length) return '<div class="empty"><b>No screenshots yet</b><span>Drop your first screenshots above.</span></div>';
+  return items.map(s => {
+    const idx = STAGES.indexOf(s.stage);
+    const segs = STAGES.map((st, i) => `<i class="${s.stage === 'failed' ? (i === 0 ? 'done' : i === 1 ? 'fail' : '') : s.stage === 'saved' || i < idx ? 'done' : i === idx ? 'act' : ''}"></i>`).join('');
+    let res;
+    if (s.stage === 'failed') res = `<span class="pill p-bad">Failed</span> <button class="btn sm" data-retry="${s.id}">Try again</button>`;
+    else if (s.stage !== 'saved') res = '<span class="pill p-info">Working</span>';
+    else if (!s.jobs.length) res = '<span class="pill p-mute">No job found</span>';
+    else res = s.jobs.map(j => `<button class="btn sm ghost" data-open="${j.id}" title="Open ${j.code}">${j.code} ${pill(j.status)}</button>`).join(' ');
+    return `<div class="prow">
+      <img src="${withT(s.image)}" alt="" loading="lazy" data-zoom="${withT(s.image)}">
+      <div style="min-width:0"><div class="fn" title="${esc(s.original_name)}">${esc(s.original_name)}</div><div class="muted small">${when(s.created_at)} · ${s.origin === 'drive' ? 'Google Drive' : 'Uploaded'}${s.source_app ? ' · ' + esc(s.source_app) : ''}</div></div>
+      <div class="segwrap"><div class="segs">${segs}</div><div class="stage-l">${esc(s.stage === 'failed' ? (s.error || 'Failed') : s.stage === 'saved' && s.error ? s.error : STAGE_LABEL[s.stage])}</div></div>
+      <div class="res row" style="gap:6px">${res}</div>
+      <button class="btn sm ghost bad" data-delshot="${s.id}" title="Remove screenshot" aria-label="Remove screenshot">✕</button>
+    </div>`;
+  }).join('');
+}
+
+V.jobs = async () => {
+  const f = S.jobFilter;
+  const sources = ['WhatsApp', 'Telegram', 'Instagram', 'LinkedIn', 'Other'];
+  return head('', 'Job sheet', 'Every job that was read from your screenshots. Click a row to see the screenshot and where each value came from.',
+    `<button class="btn" data-act="copy">${IC.copy}Copy for Excel</button><a class="btn" id="csvBtn" href="#">${IC.dl}CSV</a><a class="btn primary" id="xlsxBtn" href="#">${IC.dl}Download Excel</a>`) +
+  `<div class="panel"><div class="panel-h"><div class="toolbar">
+    <input class="input" id="q" type="search" placeholder="Search title, company, city, salary" value="${esc(f.q)}" style="width:250px">
+    <select class="input" id="fv" aria-label="Vault"><option value="all">All vaults</option>${vaults().map(v => `<option ${f.vault === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+    <select class="input" id="fsrc" aria-label="Source"><option value="all">All sources</option>${sources.map(v => `<option ${f.source === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
+    <div class="seg" id="fs">${[['all', 'All'], ['synced', 'In sheet'], ['review', 'Review'], ['duplicate', 'Duplicates'], ['rejected', 'Rejected']].map(([k, n]) => `<button data-s="${k}" class="${f.status === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+  </div><span class="muted mono small" id="cnt"></span></div>
+  <div class="tbl-wrap" id="jt"><div class="skeleton" style="margin:16px"></div></div></div>`;
+};
+let jobsReq = 0;
+async function loadJobs() {
+  const f = S.jobFilter, my = ++jobsReq;
+  const qs = new URLSearchParams({ q: f.q, vault: f.vault, status: f.status, source: f.source });
+  const d = await api('/jobs?' + qs);
+  if (my !== jobsReq || !$('#jt')) return;
+  S.jobs = d.items;
+  const exp = new URLSearchParams({ vault: f.vault, source: f.source, q: f.q, status: f.status === 'all' ? 'synced' : f.status });
+  $('#xlsxBtn').href = withT('/api/export.xlsx?' + exp); $('#csvBtn').href = withT('/api/export.csv?' + exp);
+  $('#cnt').textContent = `${d.items.length} job${d.items.length === 1 ? '' : 's'}`;
+  $('#jt').innerHTML = d.items.length ? `<table><thead><tr><th>ID</th><th>Job title / company</th><th>Location</th><th>Experience</th><th>Salary</th><th>Vault</th><th>Source</th><th>Confidence</th><th>Status</th></tr></thead><tbody>
+    ${d.items.map(j => `<tr class="click" data-open="${j.id}"><td class="mono muted small">${j.code}</td><td class="t"><b>${esc(j.title || '—')}</b><span>${esc(j.company || '—')}</span></td><td>${esc(j.location || '—')}${j.work_mode ? `<div class="muted small">${esc(j.work_mode)}</div>` : ''}</td><td class="mono">${esc(j.experience || '—')}</td><td>${esc(j.salary || '—')}</td><td><span class="vault-tag">${esc(j.vault)}</span></td><td>${src(j.source_app)}</td><td>${conf(j.confidence)}</td><td>${pill(j.status)}</td></tr>`).join('')}
+  </tbody></table>` : `<div class="empty"><b>No jobs match</b><span>Try another vault or status, or clear the search.</span></div>`;
+}
+function copyExcel() {
+  const cols = S.settings.columns.filter(c => c.enabled);
+  const rows = S.jobs.filter(j => S.jobFilter.status !== 'all' || j.status === 'synced');
+  if (!rows.length) return toast('No jobs in the sheet to copy', true);
+  const val = (j, k) => k === 'experience' ? j.experience : k === 'screenshot' ? (j.filename || '') : k === 'created_at' ? (j.created_at || '').slice(0, 10) : (j[k] ?? '');
+  const tsv = [cols.map(c => c.label).join('\t'), ...rows.map(j => cols.map(c => String(val(j, c.key)).replace(/[\t\n]/g, ' ')).join('\t'))].join('\n');
+  const done = () => toast(`${rows.length} rows copied · paste into Excel`);
+  const fallback = () => { const t = document.createElement('textarea'); t.value = tsv; t.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch { toast('Copy failed. Use Download Excel instead.', true); } t.remove(); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(tsv).then(done, fallback); else fallback();
+}
+
+V.vaults = async () => {
+  const [st, list] = await Promise.all([api('/stats'), api('/jobs?status=synced&limit=2000')]);
+  const r = S.settings.rules;
+  const desc = {};
+  r.tiers.forEach((t, i) => { const lo = i ? r.tiers[i - 1].below : 0; desc[t.name] = `${r.homeCountry} · ${t.below == null ? `${lo}+ yrs` : i ? `${lo}–${t.below} yrs` : `under ${t.below} yrs`}`; });
+  desc[r.globalVault] = `Outside ${r.homeCountry}, not remote`; desc[r.remoteVault] = 'Remote / work from anywhere';
+  return head('', 'Vaults', 'Each vault is a tab in the Excel file and in Google Sheets. Change how jobs are sorted in Vault rules.', '<a class="btn" href="#rules">Edit vault rules</a>') +
+  `<div class="grid g-3">${vaults().map(v => {
+    const jobs = list.items.filter(j => j.vault === v);
+    return `<div class="panel"><div class="panel-h"><div><h2>${esc(v)}</h2><span class="muted small">${esc(desc[v] || '')}</span></div><span class="mono" style="font-size:1.4rem">${st.byVault[v] || 0}</span></div>
+     <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${jobs.length ? jobs.slice(0, 5).map(j => `<button class="btn ghost" data-open="${j.id}" style="justify-content:space-between;text-align:left;white-space:normal;font-weight:500"><span><b style="display:block">${esc(j.title)}</b><span class="muted small">${esc(j.company || '')}${j.location ? ' · ' + esc(j.location) : ''}</span></span><span class="mono muted small">${esc(j.experience)}</span></button>`).join('') + (jobs.length > 5 ? `<a class="btn sm ghost" href="#jobs" data-vault="${esc(v)}">See all ${jobs.length}</a>` : '') : '<span class="muted">No jobs in this vault yet.</span>'}</div></div>`;
+  }).join('')}</div>`;
+};
+
+V.review = async () => {
+  const d = await api('/jobs?status=review&limit=200');
+  return head('', 'Review queue', `The AI could not read these clearly, so it left the unclear fields empty instead of guessing. Check the highlighted fields against the screenshot, then approve. Jobs at ${S.settings.ai.threshold}% confidence or higher skip this step.`) +
+  `<div class="panel" id="revList">${d.items.length ? d.items.map(reviewCard).join('') : '<div class="empty"><b>All clear</b><span>No jobs are waiting for review.</span></div>'}</div>`;
+};
+function fieldInput(j, k, label, extra = '') {
+  const flagged = j.flags.includes(k);
+  const ev = j.evidence[k === 'exp_min' ? 'exp' : k];
+  let input;
+  if (k === 'work_mode') input = `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
+  else if (k === 'exp_min') input = `<div class="exp-pair"><input class="input mono" data-f="exp_min" inputmode="decimal" placeholder="min" value="${j.exp_min ?? ''}" aria-label="Minimum years"><span class="muted">to</span><input class="input mono" data-f="exp_max" inputmode="decimal" placeholder="max" value="${j.exp_max ?? ''}" aria-label="Maximum years"></div>`;
+  else input = `<input class="input" data-f="${k}" value="${esc(j[k] ?? '')}" placeholder="${flagged ? 'Not readable in image' : ''}">`;
+  return `<div class="field ${flagged ? 'flag' : ''}" ${extra}><label>${label}${flagged ? '<span class="pill p-warn" style="padding:0 7px">check</span>' : ''}</label>${input}
+    <span class="ev ${ev ? '' : 'none'}">${ev ? 'from image: “' + esc(ev) + '”' : flagged ? 'not found in the image text' : ''}</span></div>`;
+}
+function reviewCard(j) {
+  return `<div class="rcard" data-id="${j.id}">
+    <div class="rshot">${j.image ? `<img class="shot-img" src="${withT(j.image)}" alt="Screenshot for ${j.code}" data-zoom="${withT(j.image)}">` : ''}
+      <details><summary>Text the AI read from the image</summary><pre class="ocr">${esc(j.raw_text || '')}</pre></details></div>
+    <div class="rbody">
+      <div class="row spread"><div class="row"><b class="mono small">${j.code}</b>${src(j.source_app)}${conf(j.confidence)}</div><span class="pill p-warn">${j.flags.length ? `${j.flags.map(f => FIELD_NAMES[f] || f).join(', ')} unclear` : 'Low confidence'}</span></div>
+      <div class="fields">
+        ${fieldInput(j, 'title', 'Job title')}${fieldInput(j, 'company', 'Company')}
+        ${fieldInput(j, 'location', 'Location')}${fieldInput(j, 'exp_min', 'Experience (years)')}
+        ${fieldInput(j, 'salary', 'Salary / CTC')}${fieldInput(j, 'work_mode', 'Work mode')}
+        <div class="field"><label>Country</label><input class="input" data-f="country" value="${esc(j.country ?? '')}" placeholder="e.g. India"></div>
+        ${fieldInput(j, 'apply_contact', 'Apply link / contact')}
+      </div>
+      <div class="row spread"><span class="muted small">Goes to vault <b class="vault-prev" style="color:var(--ink)">${esc(j.vault)}</b></span>
+        <div class="row"><button class="btn sm bad" data-reject="${j.id}">Reject</button><button class="btn sm ok" data-approve="${j.id}">Approve &amp; add to sheet</button></div></div>
+    </div></div>`;
+}
+function collectFields(root) {
+  const out = {};
+  root.querySelectorAll('[data-f]').forEach(i => { out[i.dataset.f] = i.value; });
+  return out;
+}
+
+/* admin */
+V.rules = async () => {
+  const r = S.settings.rules;
+  return head('Admin', 'Vault rules', 'Rules are checked from top to bottom and the first match wins. Saving re-sorts every existing job too.', '<button class="btn primary" data-act="saveRules">Save rules</button>') +
+  `<div class="grid g-2"><div class="panel">
+    <div class="panel-h"><h2>How jobs are sorted</h2></div>
+    <div class="panel-b">
+      <div class="tier"><span class="order">1</span><input class="input" id="rRemote" value="${esc(r.remoteVault)}" aria-label="Remote vault name"><span class="cond">Work mode is Remote</span><span></span></div>
+      <div class="tier"><span class="order">2</span><input class="input" id="rGlobal" value="${esc(r.globalVault)}" aria-label="Global vault name"><span class="cond">Country is not <input class="input" id="rHome" value="${esc(r.homeCountry)}" style="width:100px;font-family:var(--f-body)" aria-label="Home country"></span><span></span></div>
+      <div id="tiers">${r.tiers.map((t, i) => tierRow(t, i, r.tiers.length)).join('')}</div>
+      <div class="row" style="margin-top:12px"><button class="btn sm" data-act="addTier">Add experience tier</button><span class="hint">The last tier catches everything else in ${esc(r.homeCountry)}. Jobs with unknown experience go to review.</span></div>
+    </div></div>
+    <div class="tester"><h3>Test a job</h3>
+      <div class="fg"><label for="tCountry">Country</label><input class="input" id="tCountry" value="India"></div>
+      <div class="fg"><label for="tMode">Work mode</label><select class="input" id="tMode"><option value="Onsite">Onsite</option><option>Hybrid</option><option>Remote</option></select></div>
+      <div class="fg"><label for="tExp">Minimum experience (years)</label><input class="input" id="tExp" value="4" inputmode="decimal"></div>
+      <div><span class="label">Goes to</span><div class="result" id="tRes">…</div><span class="hint">Uses the saved rules</span></div>
+    </div></div>`;
+};
+function tierRow(t, i, n) {
+  const last = i === n - 1;
+  return `<div class="tier" data-tier="${i}"><span class="order">${i + 3}</span><input class="input" data-tname value="${esc(t.name)}" aria-label="Vault name">
+    <span class="cond">${last ? 'Everything else' : `Experience below <input class="input" data-tbelow value="${t.below ?? ''}" inputmode="decimal" aria-label="Years"> yrs`}</span>
+    ${n > 1 ? `<button class="btn sm ghost bad" data-rmtier="${i}" aria-label="Remove tier">✕</button>` : '<span></span>'}</div>`;
+}
+function readTiers() {
+  return $$('#tiers .tier').map((row, i, a) => ({ name: row.querySelector('[data-tname]').value, below: i === a.length - 1 ? null : row.querySelector('[data-tbelow]')?.value }));
+}
+let testTimer;
+function testRule() {
+  clearTimeout(testTimer);
+  testTimer = setTimeout(async () => {
+    if (!$('#tRes')) return;
+    const r = await api('/rules/test', { method: 'POST', body: { country: $('#tCountry').value, work_mode: $('#tMode').value, exp_min: $('#tExp').value } }).catch(() => null);
+    if (r && $('#tRes')) $('#tRes').textContent = r.vault;
+  }, 150);
+}
+
+let colDraft = null;
+V.columns = async () => {
+  colDraft = structuredClone(S.settings.columns);
+  return head('Admin', 'Sheet columns', 'The columns in your Excel file and Google Sheet, in this order. A job missing a required field goes to review.', '<button class="btn primary" data-act="saveCols">Save columns</button>') +
+    `<div class="panel"><div class="panel-b" id="colList">${colRows()}</div></div>`;
+};
+const REQUIRABLE = ['title', 'company', 'location', 'experience', 'salary', 'work_mode', 'apply_contact'];
+function colRows() {
+  return `<div class="col-row label"><span></span><span>Column name</span><span class="hide-s">Required</span><span class="hide-s">Order</span><span>Include</span></div>` +
+  colDraft.map((c, i) => `<div class="col-row"><span class="col-letter">${c.enabled ? String.fromCharCode(65 + colDraft.slice(0, i).filter(x => x.enabled).length) : '–'}</span>
+    <input class="input" data-clabel="${i}" value="${esc(c.label)}" aria-label="Column name">
+    <span class="hide-s">${REQUIRABLE.includes(c.key) ? `<label class="switch"><input type="checkbox" data-creq="${i}" ${c.required ? 'checked' : ''} ${c.key === 'title' ? 'disabled' : ''} aria-label="Required"></label>` : '<span class="muted small">Automatic</span>'}</span>
+    <span class="mv hide-s"><button class="btn sm ghost" data-cmv="${i}:-1" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button class="btn sm ghost" data-cmv="${i}:1" ${i < colDraft.length - 1 ? '' : 'disabled'} aria-label="Move down">↓</button></span>
+    <label class="switch"><input type="checkbox" data-con="${i}" ${c.enabled ? 'checked' : ''} ${c.required || c.key === 'title' ? 'disabled' : ''} aria-label="Include"></label></div>`).join('');
+}
+
+V.ai = async () => {
+  const a = S.settings.ai, p = S.settings.providers;
+  const card = (k, name, desc) => `<label class="radio-card ${p[k].configured ? '' : 'off'}"><input type="radio" name="prov" value="${k}" ${a.provider === k ? 'checked' : ''} ${p[k].configured ? '' : 'disabled'}><span><b>${name}</b><br><span class="muted small">${desc}${p[k].configured ? ` · <span class="mono">${esc(p[k].model)}</span>` : ' · add the key to .env to use'}</span></span></label>`;
+  return head('Admin', 'AI reading', 'How screenshots are read. These checks are what stop the wrong or made-up values you get when pasting screenshots into ChatGPT or Gemini.', '<button class="btn primary" data-act="saveAi">Save settings</button>') +
+  `<div class="banner info"><b>How it avoids made-up values</b><span>The AI first writes out all the text it can see in the screenshot, then fills the fields. Every value it fills must appear word for word in that text. Anything that doesn't is cleared, and the job goes to the review queue instead of your sheet.</span></div>
+  <div class="grid g-2e">
+    <div class="panel"><div class="panel-h"><h2>AI service</h2></div><div class="panel-b" style="display:flex;flex-direction:column;gap:10px">
+      ${card('gemini', 'Google Gemini', 'Recommended. Low cost per screenshot')}
+      ${card('openai', 'OpenAI', 'GPT vision model')}
+      ${card('mock', 'Demo mode', 'Sample data, no AI key needed')}
+    </div></div>
+    <div class="panel"><div class="panel-h"><h2>Checks</h2></div><div class="panel-b" style="padding-block:4px">
+      <div class="fg" style="padding:12px 0;border-bottom:1px solid var(--line)"><label for="thr">Add to sheet automatically at <span class="mono" id="thrV">${a.threshold}%</span> confidence or higher</label><input type="range" id="thr" min="50" max="99" value="${a.threshold}" style="accent-color:var(--accent)"><span class="hint">Below this, the job waits in the review queue</span></div>
+      <label class="switch"><input type="checkbox" id="strict" ${a.strict ? 'checked' : ''}><span><b>Never guess a value</b><span>Clear any value that is not in the screenshot text</span></span></label>
+      <label class="switch"><input type="checkbox" id="dedupe" ${a.dedupe ? 'checked' : ''}><span><b>Skip duplicate jobs</b><span>Same title, company and apply link within <input class="input mono" id="dedupeDays" value="${a.dedupeDays}" inputmode="numeric" style="width:56px;padding:2px 6px;display:inline-block"> days</span></span></label>
+    </div></div>
+  </div>
+  <div class="panel"><div class="panel-h"><h2>Extra instructions for the AI</h2><span class="muted small">Optional. Added to the built-in instructions below.</span></div><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    <textarea class="input" id="extra" rows="4" placeholder="Example: Salaries written as '5L' mean 5 LPA. Treat 'WFH' as Remote. Ignore posts that are only training courses.">${esc(a.extraInstructions)}</textarea>
+    <details><summary>See the full instructions sent with each screenshot</summary><pre class="ocr" style="max-height:340px">${esc(S.settings.prompt)}</pre></details>
+  </div></div>`;
+};
+
+V.integrations = async () => {
+  const d = await api('/integrations'), g = d.google;
+  const st = on => on ? '<span class="pill p-ok">Connected</span>' : '<span class="pill p-mute">Not set up</span>';
+  return head('Admin', 'Integrations', 'Where screenshots come from and where finished rows go. Connections are set in the server’s .env file.') +
+  `<div class="panel">
+    <div class="integ"><div class="ic" style="background:#1E8E3E">D</div><div class="info"><div class="row"><b>Google Drive folder</b>${st(g.drive.enabled)}</div>
+      ${g.drive.enabled ? `<span class="muted small">Checked every ${g.drive.pollMinutes} min · last check ${g.drive.lastSync ? new Date(g.drive.lastSync).toLocaleString('en-IN') : 'not yet'}</span>`
+      : `<ol class="steps"><li>Create a Google Cloud service account and download its JSON key</li><li>Share your screenshots folder with the service account email</li><li>Set <code>GOOGLE_SERVICE_ACCOUNT_FILE</code> and <code>DRIVE_FOLDER_ID</code> in .env, then restart</li></ol>`}</div>
+      ${g.drive.enabled ? `<button class="btn sm" data-act="drive">Check now</button>` : ''}</div>
+    <div class="integ"><div class="ic" style="background:#188038">S</div><div class="info"><div class="row"><b>Google Sheets</b>${st(g.sheets.enabled)}</div>
+      ${g.sheets.enabled ? `<span class="muted small">Approved jobs are added to the tab named after their vault</span>` : `<ol class="steps"><li>Share your sheet with the service account email (Editor)</li><li>Set <code>GOOGLE_SHEET_ID</code> in .env, then restart</li></ol>`}</div>
+      ${g.sheets.url ? `<a class="btn sm" href="${esc(g.sheets.url)}" target="_blank" rel="noopener">Open sheet</a>` : ''}</div>
+    <div class="integ"><div class="ic" style="background:#217346">X</div><div class="info"><div class="row"><b>Excel file</b><span class="pill p-ok">Always on</span></div><span class="muted small">Download from the Job sheet page: one tab for all jobs plus one tab per vault</span></div><a class="btn sm" href="#jobs">Job sheet</a></div>
+    <div class="integ"><div class="ic" style="background:#4285F4">G</div><div class="info"><div class="row"><b>Google Gemini</b>${st(d.providers.gemini.configured)}${d.active === 'gemini' ? '<span class="pill p-info">In use</span>' : ''}</div><span class="muted small">${d.providers.gemini.configured ? esc(d.providers.gemini.model) : 'Set GEMINI_API_KEY in .env (get one at aistudio.google.com)'}</span></div></div>
+    <div class="integ"><div class="ic" style="background:#10A37F">O</div><div class="info"><div class="row"><b>OpenAI</b>${st(d.providers.openai.configured)}${d.active === 'openai' ? '<span class="pill p-info">In use</span>' : ''}</div><span class="muted small">${d.providers.openai.configured ? esc(d.providers.openai.model) : 'Optional. Set OPENAI_API_KEY in .env'}</span></div></div>
+  </div>`;
+};
+
+V.activity = async () => {
+  const d = await api('/activity');
+  return head('Admin', 'Activity log', 'Everything the system did, newest first.') +
+  `<div class="panel log">${d.items.length ? d.items.map(l => `<div class="li"><span class="mono muted small">${when(l.at)}</span><b>${esc(l.actor)}</b><span>${esc(l.message)}</span></div>`).join('') : '<div class="empty">Nothing yet.</div>'}</div>`;
+};
+
+/* ---------- job drawer ---------- */
+async function openJob(id) {
+  let j;
+  try { j = await api(`/jobs/${id}`); } catch (e) { return fail(e); }
+  const F = [['title', 'Job title'], ['company', 'Company'], ['location', 'Location'], ['country', 'Country'], ['exp_min', 'Experience'], ['salary', 'Salary / CTC'], ['work_mode', 'Work mode'], ['apply_contact', 'Apply / contact']];
+  const show = k => k === 'exp_min' ? j.experience : j[k];
+  $('#layer').innerHTML = `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-modal="true" aria-label="${j.code}">
+    <div class="dh"><div><div class="row"><span class="mono muted small">${j.code}</span>${pill(j.status)}${conf(j.confidence)}</div><h2 style="margin-top:6px;font-size:1.3rem">${esc(j.title || 'Untitled')}</h2><span class="muted">${esc(j.company || 'Company unclear')}</span></div><button class="btn sm" data-close>Close</button></div>
+    <div class="db"><div style="display:flex;flex-direction:column;gap:10px">${j.image ? `<img class="shot-img" src="${withT(j.image)}" alt="Original screenshot" data-zoom="${withT(j.image)}">` : '<div class="empty">Screenshot removed</div>'}
+      <div class="muted mono small" style="word-break:break-all">${esc(j.original_name || '')}</div>
+      <details ${j.raw_text ? '' : 'hidden'}><summary>Text the AI read from the image</summary><pre class="ocr">${esc(j.raw_text || '')}</pre></details></div>
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+        <div class="row"><span class="vault-tag">${esc(j.vault)}</span>${src(j.source_app)}<span class="muted small">Received ${when(j.created_at)}</span></div>
+        ${j.status === 'duplicate' && j.duplicate_of ? `<div class="banner info"><b>Duplicate</b><span>Same job as <button class="btn sm ghost" data-open="${j.duplicate_of}">JV-${j.duplicate_of}</button>. It was not added twice.</span></div>` : ''}
+        <form id="editForm" class="fields" style="grid-template-columns:minmax(0,1fr)">
+          ${F.map(([k, n]) => `<div class="field ${j.flags.includes(k) ? 'flag' : ''}"><label>${n}</label>
+            <div class="view-v" style="font-weight:600">${esc(show(k) || '—')}</div>
+            <div class="edit-v" hidden>${k === 'exp_min' ? `<div class="exp-pair"><input class="input mono" data-f="exp_min" value="${j.exp_min ?? ''}" inputmode="decimal"><span class="muted">to</span><input class="input mono" data-f="exp_max" value="${j.exp_max ?? ''}" inputmode="decimal"></div>` : k === 'work_mode' ? `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>` : `<input class="input" data-f="${k}" value="${esc(j[k] ?? '')}">`}</div>
+            ${k !== 'country' ? `<span class="ev ${j.evidence[k === 'exp_min' ? 'exp' : k] ? '' : 'none'}">${j.evidence[k === 'exp_min' ? 'exp' : k] ? 'from image: “' + esc(j.evidence[k === 'exp_min' ? 'exp' : k]) + '”' : show(k) ? 'edited by you' : 'not in the image'}</span>` : ''}</div>`).join('')}
+          <div class="field edit-v" hidden><label>Vault</label><select class="input" data-f="vault"><option value="">Sort automatically</option>${vaults().map(v => `<option ${v === j.vault ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+        </form>
+      </div></div>
+    <div class="df"><div class="row">
+        ${j.status !== 'rejected' ? `<button class="btn bad" data-reject="${j.id}">Reject</button>` : ''}
+        ${j.status === 'rejected' || j.status === 'duplicate' ? `<button class="btn" data-restore="${j.id}">Move to review</button>` : ''}
+      </div><div class="row">
+        <button class="btn" id="editBtn" data-edit="${j.id}">Edit</button>
+        <button class="btn primary" id="saveBtn" data-save="${j.id}" hidden>Save changes</button>
+        ${j.status === 'review' ? `<button class="btn ok" data-approve="${j.id}" data-from="drawer">Approve &amp; add to sheet</button>` : ''}
+      </div></div></aside>`;
+  $('.drawer .btn[data-close]').focus();
+}
+function closeLayer() { $('#layer').innerHTML = ''; }
+
+/* ---------- router ---------- */
+let current = null;
+async function render(silent) {
+  const key = (location.hash || '#dashboard').slice(1).split('?')[0];
+  const view = V[key] ? key : 'dashboard';
+  $$('.nav a').forEach(a => a.classList.toggle('on', a.dataset.v === view));
+  if (!silent) { $('#view').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>'; }
+  try {
+    const keepScroll = silent ? window.scrollY : 0;
+    const html = await V[view]();
+    if ((location.hash || '#dashboard').slice(1).split('?')[0] !== key && V[key]) return;
+    const active = document.activeElement?.id;
+    $('#view').innerHTML = html;
+    current = view;
+    if (view === 'jobs') await loadJobs();
+    if (view === 'rules') testRule();
+    if (silent) { window.scrollTo(0, keepScroll); if (active && $('#' + active)) $('#' + active).focus(); } else window.scrollTo(0, 0);
+  } catch (e) { if (e.message !== 'Please sign in') $('#view').innerHTML = `<div class="banner warn"><b>Could not load this page</b><span>${esc(e.message)}. Check that the server is running, then reload.</span></div>`; }
+  refreshCounts();
+}
+async function refreshCounts() {
+  try {
+    const s = await api('/stats');
+    S.stats = s;
+    $('#revCount').hidden = !s.review; $('#revCount').textContent = s.review;
+    $('#procCount').hidden = !s.processing; $('#procCount').textContent = s.processing;
+    $('#sideFoot').innerHTML = `<span class="dot ${s.provider === 'mock' ? 'warn' : ''}"></span>AI reader: ${s.provider === 'mock' ? 'demo mode' : s.provider === 'gemini' ? 'Gemini' : 'OpenAI'}<br>${s.processing ? `<span class="dot warn"></span>${s.processing} processing` : '<span class="dot off"></span>Queue empty'}<br>${S.token && S.token !== 'open' ? '<button data-act="signout">Sign out</button>' : '<span style="opacity:.7">Built by Dr. Design</span>'}`;
+    schedulePoll(s.processing > 0);
+  } catch {}
+}
+function schedulePoll(busy) {
+  clearTimeout(S.pollTimer);
+  S.pollTimer = setTimeout(async () => {
+    if (document.hidden || $('#layer').innerHTML) return schedulePoll(busy);
+    if (current === 'inbox') {
+      const d = await api('/screenshots?limit=100').catch(() => null);
+      if (d && $('#shotList')) { $('#shotList').innerHTML = shotRows(d.items); $('#qInfo').textContent = d.queue.queued + d.queue.running ? `${d.queue.running} reading now · ${d.queue.queued} waiting` : 'Queue is empty'; }
+      refreshCounts();
+    } else if (busy && ['dashboard', 'review'].includes(current) && !document.activeElement?.closest?.('.rcard')) render(true);
+    else refreshCounts();
+  }, busy ? 2000 : 15000);
+}
+
+/* ---------- uploads ---------- */
+function upload(files) {
+  files = [...files].filter(f => /^image\//.test(f.type));
+  if (!files.length) return toast('Choose PNG, JPG, WEBP or HEIC images', true);
+  const fd = new FormData(); files.forEach(f => fd.append('files', f, f.name || 'pasted.png'));
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/screenshots');
+  if (S.token) xhr.setRequestHeader('Authorization', `Bearer ${S.token}`);
+  const prog = $('#upProg');
+  if (prog) { prog.hidden = false; $('#upTxt').textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`; }
+  xhr.upload.onprogress = e => { if (e.lengthComputable && $('#upBar')) $('#upBar').style.width = (e.loaded / e.total * 100) + '%'; };
+  xhr.onload = () => {
+    if ($('#upProg')) $('#upProg').hidden = true;
+    let body = {}; try { body = JSON.parse(xhr.responseText); } catch {}
+    if (xhr.status === 401) return showLogin();
+    if (xhr.status >= 300) return toast(body.error || 'Upload failed', true);
+    toast(`${files.length} screenshot${files.length > 1 ? 's' : ''} added · reading now`);
+    if (current === 'inbox') render(true); else location.hash = '#inbox';
+  };
+  xhr.onerror = () => { if ($('#upProg')) $('#upProg').hidden = true; toast('Upload failed. Check your connection.', true); };
+  xhr.send(fd);
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-open],[data-close],[data-act],[data-approve],[data-reject],[data-restore],[data-retry],[data-delshot],[data-edit],[data-save],[data-zoom],#fs button,[data-rmtier],[data-cmv],[data-vault]');
+  if (!t) return;
+  const d = t.dataset;
+  try {
+    if (d.zoom) { e.preventDefault(); const lb = document.createElement('div'); lb.className = 'lightbox'; lb.innerHTML = `<img src="${esc(d.zoom)}" alt="Screenshot">`; lb.onclick = () => lb.remove(); document.body.appendChild(lb); return; }
+    if (d.open) { e.preventDefault(); return openJob(d.open); }
+    if ('close' in d) return closeLayer();
+    if (d.vault) { S.jobFilter.vault = d.vault; return; }
+    if (t.matches('#fs button')) { S.jobFilter.status = d.s; $$('#fs button').forEach(b => b.classList.toggle('on', b === t)); return loadJobs(); }
+    if (d.approve) {
+      const root = d.from === 'drawer' ? $('#editForm') : t.closest('.rcard');
+      t.disabled = true;
+      try {
+        const j = await api(`/jobs/${d.approve}/approve`, { method: 'POST', body: d.from === 'drawer' && $('.edit-v[hidden]') ? {} : collectFields(root) });
+        toast(`${j.code} added to ${j.vault}`);
+        if (d.from === 'drawer') closeLayer();
+        const card = t.closest('.rcard'); if (card) card.remove();
+        if (current === 'review' && !$('.rcard')) render(true); else if (current !== 'review') render(true); else refreshCounts();
+      } catch (err) { t.disabled = false; fail(err); if (err.data?.missing && root) err.data.missing.forEach(m => root.querySelector(`[data-f="${m}"]`)?.closest('.field')?.classList.add('flag')); }
+      return;
+    }
+    if (d.reject) { await api(`/jobs/${d.reject}/reject`, { method: 'POST' }); toast('Job rejected'); if ($('.drawer')) closeLayer(); const card = t.closest('.rcard'); if (card) { card.remove(); if (!$('.rcard')) render(true); else refreshCounts(); } else render(true); return; }
+    if (d.restore) { await api(`/jobs/${d.restore}/restore`, { method: 'POST' }); toast('Moved to review queue'); closeLayer(); render(true); return; }
+    if (d.retry) { await api(`/screenshots/${d.retry}/retry`, { method: 'POST' }); toast('Reading again'); render(true); return; }
+    if (d.delshot) {
+      if (t.dataset.confirm !== '1') { t.dataset.confirm = '1'; t.textContent = 'Remove?'; setTimeout(() => { if (t.isConnected) { t.dataset.confirm = ''; t.textContent = '✕'; } }, 3000); return; }
+      await api(`/screenshots/${d.delshot}`, { method: 'DELETE' }); toast('Screenshot removed'); render(true); return;
+    }
+    if (d.edit) { $$('#editForm .view-v').forEach(x => x.hidden = true); $$('#editForm .edit-v').forEach(x => x.hidden = false); $('#editBtn').hidden = true; $('#saveBtn').hidden = false; $('#editForm [data-f]').focus(); return; }
+    if (d.save) { const j = await api(`/jobs/${d.save}`, { method: 'PUT', body: collectFields($('#editForm')) }); toast(`${j.code} saved`); openJob(j.id); if (current === 'jobs') loadJobs(); return; }
+    if (d.rmtier) { const tiers = readTiers(); tiers.splice(+d.rmtier, 1); $('#tiers').innerHTML = tiers.map((x, i) => tierRow(x, i, tiers.length)).join(''); return; }
+    if (d.cmv) { const [i, dir] = d.cmv.split(':').map(Number); syncColDraft(); const [c] = colDraft.splice(i, 1); colDraft.splice(i + dir, 0, c); $('#colList').innerHTML = colRows(); return; }
+
+    switch (d.act) {
+      case 'copy': return copyExcel();
+      case 'signout': return signOut();
+      case 'drive': { t.disabled = true; const r = await api('/drive/sync', { method: 'POST' }); t.disabled = false; toast(r.busy ? 'A Drive check is already running' : r.added ? `${r.added} new screenshot${r.added > 1 ? 's' : ''} found` : 'No new screenshots in Drive'); render(true); return; }
+      case 'addTier': { const tiers = readTiers(); const last = tiers[tiers.length - 1]; const prevBelow = Number(tiers[tiers.length - 2]?.below) || 0; tiers.splice(tiers.length - 1, 0, { name: 'New tier', below: prevBelow + 3 }); last.below = null; $('#tiers').innerHTML = tiers.map((x, i) => tierRow(x, i, tiers.length)).join(''); return; }
+      case 'saveRules': {
+        const body = { homeCountry: $('#rHome').value, remoteVault: $('#rRemote').value, globalVault: $('#rGlobal').value, tiers: readTiers() };
+        const r = await api('/settings/rules', { method: 'PUT', body });
+        await loadSettings(); toast(`Rules saved${r.moved ? ` · ${r.moved} job${r.moved > 1 ? 's' : ''} moved to a different vault` : ''}`); testRule(); return;
+      }
+      case 'saveCols': { syncColDraft(); await api('/settings/columns', { method: 'PUT', body: colDraft }); await loadSettings(); colDraft = structuredClone(S.settings.columns); $('#colList').innerHTML = colRows(); toast('Columns saved'); return; }
+      case 'saveAi': {
+        const body = { provider: document.querySelector('input[name=prov]:checked')?.value, threshold: +$('#thr').value, strict: $('#strict').checked, dedupe: $('#dedupe').checked, dedupeDays: +$('#dedupeDays').value, extraInstructions: $('#extra').value };
+        await api('/settings/ai', { method: 'PUT', body }); await loadSettings(); toast('AI settings saved'); refreshCounts(); return;
+      }
+    }
+  } catch (err) { fail(err); }
+});
+function syncColDraft() {
+  $$('[data-clabel]').forEach(i => { colDraft[+i.dataset.clabel].label = i.value.trim() || colDraft[+i.dataset.clabel].label; });
+}
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'fileIn') { upload(t.files); t.value = ''; }
+  if (t.id === 'fv') { S.jobFilter.vault = t.value; loadJobs(); }
+  if (t.id === 'fsrc') { S.jobFilter.source = t.value; loadJobs(); }
+  if (t.dataset.creq) { syncColDraft(); const c = colDraft[+t.dataset.creq]; c.required = t.checked; if (t.checked) c.enabled = true; $('#colList').innerHTML = colRows(); }
+  if (t.dataset.con) { syncColDraft(); colDraft[+t.dataset.con].enabled = t.checked; $('#colList').innerHTML = colRows(); }
+  if (['tMode'].includes(t.id)) testRule();
+});
+let qTimer;
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'q') { clearTimeout(qTimer); qTimer = setTimeout(() => { S.jobFilter.q = t.value; loadJobs(); }, 250); }
+  if (['tExp', 'tCountry'].includes(t.id)) testRule();
+  if (t.id === 'thr') $('#thrV').textContent = t.value + '%';
+  const card = t.closest?.('.rcard');
+  if (card && ['country', 'work_mode', 'exp_min'].includes(t.dataset.f)) {
+    const f = collectFields(card);
+    api('/rules/test', { method: 'POST', body: { country: f.country, work_mode: f.work_mode, exp_min: f.exp_min } }).then(r => { const el = card.querySelector('.vault-prev'); if (el) el.textContent = r.vault; }).catch(() => {});
+  }
+});
+['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { const dz = e.target.closest?.('#dz'); if (dz) { e.preventDefault(); dz.classList.add('over'); } }));
+document.addEventListener('dragleave', e => { const dz = e.target.closest?.('#dz'); if (dz && !dz.contains(e.relatedTarget)) dz.classList.remove('over'); });
+document.addEventListener('drop', e => { const dz = e.target.closest?.('#dz'); if (dz) { e.preventDefault(); dz.classList.remove('over'); upload(e.dataTransfer.files); } else if (e.dataTransfer?.files?.length) e.preventDefault(); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('paste', e => {
+  if (current !== 'inbox') return;
+  const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean);
+  if (files.length) upload(files);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { const lb = $('.lightbox'); if (lb) lb.remove(); else closeLayer(); } });
+window.addEventListener('hashchange', () => { closeLayer(); render(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshCounts(); });
+
+/* ---------- boot ---------- */
+async function loadSettings() { S.settings = await api('/settings'); }
+async function boot() {
+  try {
+    const h = await fetch('/api/health').then(r => r.json());
+    if (h.authRequired && (!S.token || S.token === 'open')) return showLogin();
+    if (!h.authRequired) S.token = 'open';
+    await loadSettings();
+    $('#app').hidden = false; $('#login').hidden = true;
+    render();
+  } catch (e) {
+    if (e.message === 'Please sign in') return;
+    document.body.innerHTML = `<div class="login"><div class="panel login-card"><h2>Server not reachable</h2><p class="muted">Start it with <code>npm start</code> and reload this page.</p></div></div>`;
+  }
+}
+boot();
+})();
+
+</script>
