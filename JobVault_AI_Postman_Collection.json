@@ -1,0 +1,376 @@
+{
+  "info": {
+    "name": "JobVault AI APIs",
+    "description": "Complete Postman collection for JobVault AI (OCR, Vaults, Social Media AI Content Generator, and Excel Exporter)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "1153",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Social Media AI Content Generator (LinkedIn & Instagram)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"platform\": \"all\",\n  \"tone\": \"professional\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/jobs/{{job_id}}/generate-content",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "jobs",
+            "{{job_id}}",
+            "generate-content"
+          ]
+        },
+        "description": "Generates AI-crafted LinkedIn posts and Instagram captions based on the job screenshot and extracted fields."
+      }
+    },
+    {
+      "name": "2. Social Media AI Content Generator (GET Shortcut)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/jobs/{{job_id}}/generate-content",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "jobs",
+            "{{job_id}}",
+            "generate-content"
+          ]
+        },
+        "description": "Simple GET request to quickly test AI content generation without needing a request body."
+      }
+    },
+    {
+      "name": "3. Upload Screenshot or PDF (Dual Ingestion)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "files",
+              "type": "file",
+              "description": "Select an image (.png, .jpg, .webp) or a multi-page PDF (.pdf)"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/screenshots",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "screenshots"
+          ]
+        },
+        "description": "Uploads single screenshot or multi-page PDF. PDFs are auto-split page by page into high-res images and parsed by AI."
+      }
+    },
+    {
+      "name": "4. Get Jobs List (Filter by Vault: India · Fresher 0-2 yrs)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/jobs?vault=India · Fresher&limit=50",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "jobs"
+          ],
+          "query": [
+            {
+              "key": "vault",
+              "value": "India · Fresher"
+            },
+            {
+              "key": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "description": "Lists jobs in 0-2 yrs tier (includes freshers, 1 yr, and 2 yr overlapping entries)."
+      }
+    },
+    {
+      "name": "5. Get Jobs List (Filter by Vault: India · Junior 2-5 yrs)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/jobs?vault=India · Junior&limit=50",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "jobs"
+          ],
+          "query": [
+            {
+              "key": "vault",
+              "value": "India · Junior"
+            },
+            {
+              "key": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "description": "Lists jobs in 2-5 yrs tier (includes 2 yr overlapping entries)."
+      }
+    },
+    {
+      "name": "6. Get Real-Time Stats (Vault Overlap Counts)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/stats",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "stats"
+          ]
+        },
+        "description": "Returns counts for all vaults with inclusive boundary overlap calculations."
+      }
+    },
+    {
+      "name": "7. Download 12-Column Multi-Tab Excel Workbook",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/export.xlsx",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "export.xlsx"
+          ]
+        },
+        "description": "Downloads Client-Standard 12-Column Excel workbook with All Jobs master tab and individual Vault tabs. In Postman, click 'Send and Download'."
+      }
+    },
+    {
+      "name": "8. AI Provider & Integrations Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/integrations",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "integrations"
+          ]
+        },
+        "description": "Checks whether OpenAI, Gemini, or Mock engine is active."
+      }
+    },
+    {
+      "name": "9. Auth - Admin Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/auth/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Authenticate admin user and receive JWT access and refresh tokens."
+      }
+    },
+    {
+      "name": "10. Auth - Forgot Password (Request OTP & Token)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@gmail.com\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/auth/forgot-password",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "forgot-password"
+          ]
+        },
+        "description": "Sends/generates a 6-digit OTP code and secure reset token for password recovery."
+      }
+    },
+    {
+      "name": "11. Auth - Verify Reset Token or OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@gmail.com\",\n  \"otp\": \"123456\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/auth/verify-reset-token",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "verify-reset-token"
+          ]
+        },
+        "description": "Verifies whether the supplied OTP or reset token is valid before setting a new password."
+      }
+    },
+    {
+      "name": "12. Auth - Reset Password (Confirm New Password)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@gmail.com\",\n  \"otp\": \"123456\",\n  \"new_password\": \"NewSecurePass2026!\",\n  \"confirm_new_password\": \"NewSecurePass2026!\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/auth/reset-password",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "reset-password"
+          ]
+        },
+        "description": "Sets the new password using the validated OTP or UID/Token."
+      }
+    },
+    {
+      "name": "13. Auth - Change Password (When Logged In)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer <YOUR_JWT_ACCESS_TOKEN>"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"old_password\": \"admin123\",\n  \"new_password\": \"UpdatedPass2026!\",\n  \"confirm_new_password\": \"UpdatedPass2026!\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/auth/change-password",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "change-password"
+          ]
+        },
+        "description": "Authenticated admin changes password providing old and new password."
+      }
+    },
+    {
+      "name": "14. Auth - Get Current Profile (/auth/me)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer <YOUR_JWT_ACCESS_TOKEN>"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/auth/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "me"
+          ]
+        },
+        "description": "Retrieves the currently authenticated user profile."
+      }
+    }
+  ]
+}

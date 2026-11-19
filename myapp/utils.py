@@ -141,29 +141,128 @@ def calculate_fingerprint(job_data):
     return f"{title}|{company}|{contact}"
 
 
-def classify_job(job_data, rules=None):
+def clean_parse_exp(exp_str, details=""):
+    comb = f"{exp_str} {details}"
+    if not comb.strip():
+        return None, None
+
+    # Check for fresher/intern/graduate first
+    if re.search(r'\b(fresh|freshers?|interns?|internship|apprentices?|trainee)\b', comb, re.I):
+        return 0.0, None
+
+    # Clean out age or year tokens
+    clean_s = re.sub(r'age\s*(?:below|above|max|limit)?\s*\d+\s*(?:yrs?|years?)?', '', str(exp_str or ""), flags=re.I)
+    clean_s = re.sub(r'202\d\s*[-–to]\s*202\d', '', clean_s)
+
+    # Range like 2 to 3 years, 2-5 years, 3–6 yrs
+    m_range = re.search(r'(\d+(?:\.\d+)?)\s*(?:[-–to]|to)\s*(\d+(?:\.\d+)?)\s*(?:yrs?|years?)', clean_s, re.I)
+    if m_range:
+        lo, hi = float(m_range.group(1)), float(m_range.group(2))
+        if lo < 50 and hi < 50:
+            return lo, hi
+
+    # Months like 6 months
+    m_mo = re.search(r'(\d+)\+?\s*months?', clean_s, re.I)
+    if m_mo:
+        return round(float(m_mo.group(1)) / 12, 1), None
+
+    # Plus like 2+ yrs, 5+ years, 10+ yrs
+    m_plus = re.search(r'(\d+(?:\.\d+)?)\+?\s*(?:yrs?|years?)', clean_s, re.I)
+    if m_plus:
+        v = float(m_plus.group(1))
+        if v < 50:
+            return v, None
+
+    return None, None
+
+
+def get_job_vault_list(job_data, rules=None):
+    """
+    Returns the list of all vaults this job qualifies for.
+    Boundary overlap rules:
+    - 0–2 yrs: India · Fresher (includes freshers, 0, 1, 2 yrs)
+    - 2–5 yrs: India · Junior (includes 2, 3, 4, 5 yrs) -> 2-yr jobs appear in BOTH Fresher and Junior!
+    - Remote: Remote jobs (always paired with experience-tier vault as well)
+    - Global: Outside India jobs
+    - 0–2 yrs: India · Fresher (includes freshers, 0, 1, 2 yrs; or ranges starting < 2)
+    - 2–5 yrs: India · Junior (includes 2, 3, 4, 5 yrs; or ranges spanning into 2-5 yrs, e.g. 1-4 yrs)
+    - 5–10 yrs: India · Mid-level (includes 5 to 10 yrs; or ranges spanning into 5-10 yrs, e.g. 3-7 yrs)
+    - 10+ yrs: India · Senior (includes 10+ yrs; or ranges spanning >= 10 yrs, e.g. 8-12 yrs)
+    """
     if rules is None:
         rules = get_vault_rules()
 
+    matched = []
+
     work_mode = str(job_data.get("work_mode") or "").strip().lower()
-    if work_mode == "remote":
-        return rules.get("remoteVault", "Remote")
+    loc = str(job_data.get("location") or "").lower()
+    title = str(job_data.get("title") or "").lower()
+
+    is_remote = work_mode == "remote" or "remote" in loc or "remote" in title or "work from home" in loc or "wfh" in loc
+    if is_remote:
+        matched.append(rules.get("remoteVault", "Remote"))
 
     country = str(job_data.get("country") or "").strip()
     home_country = str(rules.get("homeCountry") or "India").strip()
-    if country and country.lower() != home_country.lower():
-        return rules.get("globalVault", "Global")
+    is_global = bool(country and country.lower() != home_country.lower())
+    if is_global:
+        matched.append(rules.get("globalVault", "Global"))
 
-    exp_min = job_data.get("exp_min")
-    for t in rules.get("tiers", []):
-        below = t.get("below")
-        if below is None or exp_min is None or exp_min < below:
-            return t.get("name", "India · Fresher")
+    # Check experience
+    lo = job_data.get("exp_min")
+    hi = job_data.get("exp_max")
 
-    tiers = rules.get("tiers", [])
-    if tiers:
-        return tiers[-1].get("name")
-    return "India · Fresher"
+    ev_exp = str(job_data.get("evidence", {}).get("exp") or job_data.get("experience") or "")
+    if lo is None or (isinstance(lo, (int, float)) and lo > 40):
+        n_lo, n_hi = clean_parse_exp(ev_exp, str(job_data.get("other_details") or ""))
+        if n_lo is not None:
+            lo, hi = n_lo, n_hi
+
+    if lo is None:
+        if any(k in title for k in ["fresher", "intern", "trainee", "entry"]):
+            lo, hi = 0.0, 0.0
+        elif any(k in title for k in ["vp", "director", "head", "cxo", "chief", "partner", "president"]):
+            lo, hi = 10.0, 15.0
+        elif any(k in title for k in ["manager", "lead", "senior"]):
+            lo, hi = 5.0, 8.0
+        else:
+            lo, hi = 0.0, 0.0
+
+    if hi is None:
+        hi = lo
+
+    # Dynamic tier mapping from rules or standard tiers
+    # Tier 1: 0-2 yrs (Fresher, 0, 1, 2)
+    if lo < 2.0 or (lo == 2.0 and hi <= 2.0):
+        matched.append("India · Fresher")
+
+    # Tier 2: 2-5 yrs (2, 3, 4, 5) -> 2-yr jobs appear in BOTH 0-2 and 2-5; 1-4 yrs spans Fresher & Junior
+    if (lo >= 2.0 and lo < 5.0) or (hi > 2.0 and lo < 5.0) or (lo == 5.0 and hi <= 5.0):
+        matched.append("India · Junior")
+
+    # Tier 3: 5-10 yrs (5 to 10) -> 5-yr jobs appear in BOTH Junior and Mid; 3-7 yrs spans Junior & Mid
+    if (lo >= 5.0 and lo < 10.0) or (hi > 5.0 and lo < 10.0) or (lo == 10.0 and hi <= 10.0):
+        matched.append("India · Mid-level")
+
+    # Tier 4: 10+ yrs -> 10-yr jobs appear in BOTH Mid and Senior; 8-12 yrs spans Mid & Senior
+    if hi > 10.0 or lo >= 10.0:
+        matched.append("India · Senior")
+
+    if not matched:
+        matched.append("India · Fresher")
+
+    # Remove duplicates preserving order
+    unique_matched = []
+    for m in matched:
+        if m not in unique_matched:
+            unique_matched.append(m)
+
+    return unique_matched
+
+
+def classify_job(job_data, rules=None):
+    vault_list = get_job_vault_list(job_data, rules)
+    return ", ".join(vault_list)
 
 
 def generate_job_id(vault_name, date_obj=None):
@@ -171,20 +270,22 @@ def generate_job_id(vault_name, date_obj=None):
         date_obj = timezone.now().date()
     ddmmyy = date_obj.strftime("%d%m%y")
     v_lower = str(vault_name or "").lower()
-    if "remote" in v_lower:
+    first_vault = [x.strip() for x in v_lower.split(",") if x.strip()][0] if v_lower else ""
+
+    if "remote" in first_vault:
         prefix = "R"
-    elif "global" in v_lower or "uae" in v_lower:
+    elif "global" in first_vault or "uae" in first_vault:
         prefix = "G"
-    elif "fresher" in v_lower or "early" in v_lower:
+    elif "fresher" in first_vault or "early" in first_vault:
         prefix = "C"
-    elif "mid" in v_lower or "junior" in v_lower or "management" in v_lower:
-        prefix = "M"
-    elif "executive" in v_lower:
+    elif "executive" in first_vault:
         prefix = "E"
-    elif "leadership" in v_lower or "senior" in v_lower:
+    elif "leadership" in first_vault or "senior" in first_vault:
         prefix = "L"
+    elif "mid" in first_vault or "junior" in first_vault or "management" in first_vault:
+        prefix = "M"
     else:
-        prefix = "L"
+        prefix = "M"
 
     pattern = f"{prefix}-{ddmmyy}-"
     existing = Job.objects.filter(job_id__startswith=pattern).values_list("job_id", flat=True)
@@ -223,6 +324,51 @@ def extract_with_gemini(image_path, extra_instructions=""):
     content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.MULTILINE)
     content = re.sub(r"\s*```$", "", content, flags=re.MULTILINE)
     return json.loads(content)
+
+
+def sanitize_ai_error(err, provider="OpenAI"):
+    """
+    Sanitizes raw AI API errors to produce human-friendly, concise messages
+    without ever exposing API keys, long asterisks chains, or raw JSON payloads.
+    """
+    raw_str = str(err).strip()
+    raw_lower = raw_str.lower()
+
+    # 1. 401 Unauthorized / Invalid API Key
+    if "401" in raw_str or "incorrect api key" in raw_lower or "invalid api key" in raw_lower or "invalid_api_key" in raw_lower or "api_key_invalid" in raw_lower:
+        return f"{provider} error: Invalid or incorrect API key. Please check your {provider.upper()}_API_KEY."
+
+    # 2. 429 Insufficient Quota / Credits
+    if "insufficient_quota" in raw_lower or "no credits remaining" in raw_lower or "quota exceeded" in raw_lower or "billing" in raw_lower:
+        return f"{provider} error: Quota exceeded (no credits remaining). Please check your {provider} billing plan."
+
+    # 3. 429 Rate Limit
+    if "rate_limit" in raw_lower or "rate limit" in raw_lower or "too many requests" in raw_lower or "resource_exhausted" in raw_lower:
+        return f"{provider} error: Rate limit reached. Too many requests. Please wait a moment and retry."
+
+    # 4. Model not found or unavailable
+    if "model_not_found" in raw_lower or "does not exist" in raw_lower:
+        return f"{provider} error: Selected model is unavailable or not found."
+
+    # 5. Network / Timeout
+    if "connection error" in raw_lower or "timed out" in raw_lower or "timeout" in raw_lower or "name or service not known" in raw_lower:
+        return f"{provider} error: Connection timed out. Please check your internet connection."
+
+    # 6. General fallback: strip any keys, tokens, or asterisks chains
+    clean = re.sub(r"sk-[a-zA-Z0-9_\-\*]+", "[REDACTED_KEY]", raw_str)
+    clean = re.sub(r"AIzaSy[a-zA-Z0-9_\-\*]+", "[REDACTED_KEY]", clean)
+    clean = re.sub(r"\*{4,}", "****", clean)
+
+    msg_match = re.search(r"['\"]message['\"]\s*:\s*['\"]([^'\"]+)['\"]", clean)
+    if msg_match:
+        clean_msg = msg_match.group(1).strip()
+        clean_msg = re.sub(r"sk-[a-zA-Z0-9_\-\*]+", "[REDACTED_KEY]", clean_msg)
+        clean_msg = re.sub(r"\*{4,}", "****", clean_msg)
+        return f"{provider} error: {clean_msg[:120]}"
+
+    if len(clean) > 120:
+        clean = clean[:117] + "..."
+    return f"{provider} error: {clean}"
 
 
 def extract_with_openai(image_path, extra_instructions=""):
@@ -373,22 +519,22 @@ def process_screenshot(screenshot):
             try:
                 extracted_data = extract_with_openai(file_path, extra_instructions)
             except Exception as e:
-                screenshot.error = f"OpenAI error: {str(e)}"
+                screenshot.error = sanitize_ai_error(e, provider="OpenAI")
         elif provider == "gemini" and gemini_key:
             try:
                 extracted_data = extract_with_gemini(file_path, extra_instructions)
             except Exception as e:
-                screenshot.error = f"Gemini error: {str(e)}"
+                screenshot.error = sanitize_ai_error(e, provider="Gemini")
         elif openai_key:
             try:
                 extracted_data = extract_with_openai(file_path, extra_instructions)
             except Exception as e:
-                screenshot.error = f"OpenAI error: {str(e)}"
+                screenshot.error = sanitize_ai_error(e, provider="OpenAI")
         elif gemini_key:
             try:
                 extracted_data = extract_with_gemini(file_path, extra_instructions)
             except Exception as e:
-                screenshot.error = f"Gemini error: {str(e)}"
+                screenshot.error = sanitize_ai_error(e, provider="Gemini")
 
     # Dynamic fallback if live AI wasn't triggered or failed
     if not extracted_data:
@@ -396,7 +542,7 @@ def process_screenshot(screenshot):
 
     screenshot.stage = "verifying"
     screenshot.raw_text = extracted_data.get("raw_text", "")
-    screenshot.source_app = extracted_data.get("source_app", "Other")
+    screenshot.source_app = extracted_data.get("source_app") or "Other"
     screenshot.save(update_fields=["raw_text", "source_app", "stage", "error"])
 
     # Verify fields
@@ -455,7 +601,7 @@ def process_screenshot(screenshot):
         other_details=extracted_data.get("other_details") or extracted_data.get("evidence", {}).get("details", ""),
         work_mode=extracted_data.get("work_mode"),
         apply_contact=extracted_data.get("apply_contact"),
-        source_app=screenshot.source_app,
+        source_app=screenshot.source_app or extracted_data.get("source_app") or "Other",
         vault=vault,
         confidence=confidence,
         evidence=extracted_data.get("evidence", {}),
@@ -483,3 +629,212 @@ def process_screenshot(screenshot):
 
     ActivityLog.objects.create(action=action, details=msg)
     return job
+
+
+# ------------------ Social Media Post / Content Generator ------------------
+
+def generate_fallback_social_content(job, tone="professional"):
+    """
+    Intelligent built-in copywriter that generates formatted,
+    high-converting LinkedIn & Instagram posts from job data.
+    """
+    title = job.title or "Exciting Opportunity"
+    company = job.company or "Reputed Firm"
+    loc = job.location or "India"
+    mode = f" ({job.work_mode})" if job.work_mode else ""
+    
+    if job.exp_min is not None and job.exp_max is not None:
+        exp_str = f"{job.exp_min} - {job.exp_max} Years"
+    elif job.exp_min is not None:
+        exp_str = f"{job.exp_min}+ Years" if job.exp_min > 0 else "Freshers Welcome (0+ yrs)"
+    else:
+        exp_str = "Fresher / Experienced (As per industry standards)"
+
+    salary_str = job.salary if job.salary else "Best in Industry / Commensurate with experience"
+    contact_str = job.apply_contact if job.apply_contact else "Direct message or email resume"
+    
+    extra_pts = []
+    if job.qualification:
+        extra_pts.append(f"• Qualification: {job.qualification}")
+    if job.other_details:
+        clean_det = str(job.other_details).strip()[:180]
+        extra_pts.append(f"• Key Highlights: {clean_det}")
+    extra_section = ("\n" + "\n".join(extra_pts)) if extra_pts else ""
+
+    slug = re.sub(r'[^a-zA-Z0-9]', '', title)
+    comp_slug = re.sub(r'[^a-zA-Z0-9]', '', company)
+    hashtags = [
+        f"#{slug}" if slug else "#JobOpening",
+        f"#{comp_slug}" if comp_slug else "#HiringNow",
+        "#CareerOpportunity",
+        "#JobAlert",
+        "#NowHiring",
+        "#ImmediateJoiners",
+        "#JobsInIndia"
+    ]
+    hash_str = " ".join(hashtags)
+
+    # 1. LinkedIn Post
+    linkedin_post = f"""🚀 We're Hiring: {title} at {company}!
+
+Looking to elevate your career? {company} is actively seeking a driven and passionate {title} to join their team in {loc}{mode}.
+
+📌 Role Overview & Key Details:
+• Position: {title}
+• Company: {company}
+• Location: {loc}{mode}
+• Experience Required: {exp_str}
+• Compensation: {salary_str}{extra_section}
+
+📩 How to Apply:
+Interested candidates are invited to share their updated CV via:
+👉 {contact_str}
+
+Please feel free to like, share, and tag peers in your network who might be a great fit for this opportunity!
+
+{hash_str}"""
+
+    # 2. Instagram Caption
+    instagram_post = f"""⚡ HIRING ALERT: {title} ⚡
+🏢 Company: {company}
+📍 Location: {loc}{mode}
+💼 Experience: {exp_str}
+💰 Salary: {salary_str}
+
+{extra_section}
+
+📲 HOW TO APPLY:
+{contact_str}
+
+✨ Save this post & share it with your friends!
+💬 Comment 'APPLY' or DM us for more details.
+
+.
+.
+{hash_str} #JobSearch #CareerGoals #TechHiring #Employment"""
+
+    summary = f"Generated {tone} social posts for {title} at {company} ({loc})"
+
+    return {
+        "linkedin": linkedin_post.strip(),
+        "instagram": instagram_post.strip(),
+        "hashtags": hashtags,
+        "summary": summary,
+        "engine": "smart-fallback (offline/quota ready)",
+    }
+
+
+def format_social_post_text(val):
+    """
+    Ensures social post content is always formatted as a clean, ready-to-post string.
+    Gracefully handles nested dicts, lists, or custom JSON structures returned by LLMs.
+    """
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val.strip()
+    if isinstance(val, list):
+        return "\n".join(format_social_post_text(x) for x in val if x).strip()
+    if isinstance(val, dict):
+        if "post" in val:
+            return format_social_post_text(val["post"])
+        parts = []
+        for key in ["title", "headline", "intro", "greeting"]:
+            if key in val and isinstance(val[key], str):
+                parts.append(val[key].strip())
+        if "body" in val:
+            b = val["body"]
+            if isinstance(b, list):
+                parts.append("\n".join(str(x) for x in b if x).strip())
+            elif isinstance(b, (str, dict)):
+                parts.append(format_social_post_text(b))
+        for key in ["why_join", "highlights", "perks", "requirements", "details"]:
+            if key in val:
+                v = val[key]
+                if isinstance(v, list):
+                    parts.append("\n".join(str(x) for x in v if x).strip())
+                elif isinstance(v, (str, dict)):
+                    parts.append(format_social_post_text(v))
+        for key in ["how_to_apply", "apply", "cta", "CTA", "call_to_action", "career_appeal"]:
+            if key in val and isinstance(val[key], str):
+                parts.append(val[key].strip())
+        if not parts:
+            for k, v in val.items():
+                formatted_v = format_social_post_text(v)
+                if formatted_v:
+                    parts.append(formatted_v)
+        return "\n\n".join(parts).strip()
+    return str(val).strip()
+
+
+def generate_social_content(job, platform="all", tone="professional"):
+    """
+    Generates tailored LinkedIn and Instagram posts for a given job.
+    Uses OpenAI GPT-4o if active API key with quota is available,
+    otherwise seamlessly uses the built-in smart copywriter.
+    """
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
+
+    openai_key = os.getenv("OPENAI_API_KEY") or getattr(settings, "OPENAI_API_KEY", "")
+
+    if openai_key:
+        try:
+            import openai
+            client = openai.OpenAI(api_key=openai_key)
+
+            system_prompt = (
+                "You are an expert recruitment copywriter and social media strategist.\n"
+                "Craft 2 high-converting social media posts based on the provided job data.\n"
+                "Return a JSON object with strictly these keys:\n"
+                "- 'linkedin': A single comprehensive, formatted STRING (with line breaks, emojis, bullet points, and CTA) ready to post directly on LinkedIn. DO NOT return a nested object.\n"
+                "- 'instagram': A single catchy, formatted STRING (with emojis, concise perks, and CTA) ready to post directly on Instagram. DO NOT return a nested object.\n"
+                "- 'hashtags': An array of 6-10 relevant hashtags as strings.\n"
+                "- 'summary': A brief one-line summary string.\n"
+                "IMPORTANT: 'linkedin' and 'instagram' MUST be plain text strings, NOT nested dictionaries or objects."
+            )
+
+            job_payload = {
+                "title": job.title,
+                "company": job.company,
+                "location": job.location,
+                "work_mode": job.work_mode,
+                "exp_min": job.exp_min,
+                "exp_max": job.exp_max,
+                "salary": job.salary,
+                "qualification": job.qualification,
+                "other_details": job.other_details,
+                "apply_contact": job.apply_contact,
+                "tone": tone,
+                "requested_platform": platform,
+            }
+
+            response = client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Generate social media posts for this job:\n{json.dumps(job_payload, default=str)}"}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7,
+            )
+
+            data = json.loads(response.choices[0].message.content)
+            raw_li = data.get("linkedin")
+            raw_ig = data.get("instagram")
+            linkedin_text = format_social_post_text(raw_li) or generate_fallback_social_content(job, tone)["linkedin"]
+            instagram_text = format_social_post_text(raw_ig) or generate_fallback_social_content(job, tone)["instagram"]
+
+            return {
+                "linkedin": linkedin_text,
+                "instagram": instagram_text,
+                "hashtags": data.get("hashtags") or ["#Hiring", "#JobAlert", "#Career"],
+                "summary": data.get("summary") or f"AI-generated social content for {job.title}",
+                "engine": "openai (gpt-4o)",
+            }
+        except Exception:
+            # If OpenAI throws quota or network error, fallback to smart copywriter
+            pass
+
+    return generate_fallback_social_content(job, tone=tone)
+

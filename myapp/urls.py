@@ -6,16 +6,19 @@ from myapp.views import (
     ChangePasswordView,
     ExportCsvView,
     ExportExcelView,
+    ForgotPasswordView,
     HealthView,
     IntegrationsView,
     JobApproveView,
     JobDetailView,
+    JobGenerateContentView,
     JobRejectView,
     JobRestoreView,
     JobsListView,
     LoginView,
     LogoutView,
     RegisterView,
+    ResetPasswordConfirmView,
     RulesTestView,
     ScreenshotDetailView,
     ScreenshotRetryView,
@@ -26,6 +29,7 @@ from myapp.views import (
     SettingsView,
     StatsView,
     UserProfileView,
+    VerifyResetTokenView,
 )
 
 urlpatterns = [
@@ -75,6 +79,8 @@ urlpatterns = [
     path("jobs/<int:pk>/reject", JobRejectView.as_view()),
     path("jobs/<int:pk>/restore/", JobRestoreView.as_view(), name="job-restore"),
     path("jobs/<int:pk>/restore", JobRestoreView.as_view()),
+    path("jobs/<int:pk>/generate-content/", JobGenerateContentView.as_view(), name="job-generate-content"),
+    path("jobs/<int:pk>/generate-content", JobGenerateContentView.as_view()),
 
     # Settings
     path("settings/", SettingsView.as_view(), name="settings"),
@@ -111,4 +117,10 @@ urlpatterns = [
     path("auth/logout", LogoutView.as_view()),
     path("auth/change-password/", ChangePasswordView.as_view(), name="change-password"),
     path("auth/change-password", ChangePasswordView.as_view()),
+    path("auth/forgot-password/", ForgotPasswordView.as_view(), name="auth-forgot-password"),
+    path("auth/forgot-password", ForgotPasswordView.as_view()),
+    path("auth/verify-reset-token/", VerifyResetTokenView.as_view(), name="auth-verify-reset-token"),
+    path("auth/verify-reset-token", VerifyResetTokenView.as_view()),
+    path("auth/reset-password/", ResetPasswordConfirmView.as_view(), name="auth-reset-password"),
+    path("auth/reset-password", ResetPasswordConfirmView.as_view()),
 ]

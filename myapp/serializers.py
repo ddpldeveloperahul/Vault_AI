@@ -160,6 +160,67 @@ class ChangePasswordSerializer(serializers.Serializer):
         return value
 
 
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        val = value.strip().lower()
+        user = User.objects.filter(Q(email__iexact=val) | Q(username__iexact=val)).first()
+        if not user:
+            raise serializers.ValidationError("No active user found with this email address or username.")
+        if not user.is_active:
+            raise serializers.ValidationError("This user account is currently inactive.")
+        return val
+
+
+class VerifyResetTokenSerializer(serializers.Serializer):
+    uidb64 = serializers.CharField(required=False, allow_blank=True)
+    token = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    otp = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        uidb64 = attrs.get("uidb64")
+        token = attrs.get("token")
+        email = attrs.get("email")
+        otp = attrs.get("otp")
+
+        if not (uidb64 and token) and not (email and otp):
+            raise serializers.ValidationError("Either (uidb64 and token) or (email and otp) must be provided.")
+        return attrs
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    uidb64 = serializers.CharField(required=False, allow_blank=True)
+    token = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    otp = serializers.CharField(required=False, allow_blank=True)
+    new_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        validators=[validate_password],
+        style={"input_type": "password"}
+    )
+    confirm_new_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        style={"input_type": "password"}
+    )
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError({"confirm_new_password": "New passwords do not match."})
+
+        uidb64 = attrs.get("uidb64")
+        token = attrs.get("token")
+        email = attrs.get("email")
+        otp = attrs.get("otp")
+
+        if not (uidb64 and token) and not (email and otp):
+            raise serializers.ValidationError("Either (uidb64 and token) or (email and otp) must be provided.")
+        return attrs
+
+
 class JobSimpleSerializer(serializers.ModelSerializer):
     code = serializers.CharField(read_only=True)
 
@@ -172,6 +233,7 @@ class ScreenshotSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     job_count = serializers.SerializerMethodField()
     jobs = serializers.SerializerMethodField()
+    error = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     class Meta:
@@ -207,6 +269,12 @@ class ScreenshotSerializer(serializers.ModelSerializer):
     def get_jobs(self, obj):
         return JobSimpleSerializer(obj.jobs.all(), many=True).data
 
+    def get_error(self, obj):
+        if not obj.error:
+            return None
+        from myapp.utils import sanitize_ai_error
+        return sanitize_ai_error(obj.error)
+
 
 class JobSerializer(serializers.ModelSerializer):
     code = serializers.CharField(read_only=True)
@@ -218,6 +286,7 @@ class JobSerializer(serializers.ModelSerializer):
     raw_text = serializers.CharField(source="screenshot.raw_text", read_only=True)
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    vaults = serializers.SerializerMethodField()
 
     class Meta:
         model = Job
@@ -241,6 +310,7 @@ class JobSerializer(serializers.ModelSerializer):
             "apply_contact",
             "source_app",
             "vault",
+            "vaults",
             "confidence",
             "evidence",
             "flags",
@@ -254,6 +324,10 @@ class JobSerializer(serializers.ModelSerializer):
             "filename",
             "raw_text",
         ]
+
+    def get_vaults(self, obj):
+        v = str(obj.vault or "")
+        return [x.strip() for x in v.split(",") if x.strip()]
 
     def get_image(self, obj):
         if obj.screenshot and obj.screenshot.file:

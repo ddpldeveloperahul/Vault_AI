@@ -95,7 +95,7 @@ class Job(models.Model):
     work_mode = models.CharField(max_length=50, null=True, blank=True)
     apply_contact = models.CharField(max_length=255, null=True, blank=True)
     source_app = models.CharField(max_length=50, default="Other")
-    vault = models.CharField(max_length=100, default="India · Fresher")
+    vault = models.CharField(max_length=255, default="India · Fresher")
     confidence = models.FloatField(default=0.90)
     evidence = models.JSONField(default=dict, blank=True)
     flags = models.JSONField(default=list, blank=True)

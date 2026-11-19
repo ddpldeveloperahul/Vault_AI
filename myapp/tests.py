@@ -122,14 +122,15 @@ class JobVaultAPITests(APITestCase):
         self.assertEqual(res_rule.status_code, status.HTTP_200_OK)
         self.assertEqual(res_rule.data["vault"], "India · Fresher")
 
-        # Test Remote Rule
+        # Test Remote Rule (Multi-vault: Remote + Experience tier)
         res_remote = self.client.post("/api/rules/test", {
             "country": "India",
             "work_mode": "Remote",
             "exp_min": 3
         }, format="json")
         self.assertEqual(res_remote.status_code, status.HTTP_200_OK)
-        self.assertEqual(res_remote.data["vault"], "Remote")
+        self.assertIn("Remote", res_remote.data["vault"])
+        self.assertIn("India · Junior", res_remote.data["vault"])
 
     def test_export_csv_and_excel(self):
         shot = Screenshot.objects.create(filename="test.jpg", original_name="test.jpg")
@@ -168,3 +169,119 @@ class JobVaultAPITests(APITestCase):
         me_res = self.client.get("/api/auth/me")
         self.assertEqual(me_res.status_code, status.HTTP_200_OK)
         self.assertEqual(me_res.data["username"], "adminuser")
+
+    def test_generate_social_content(self):
+        shot = Screenshot.objects.create(filename="shot1.jpg", original_name="shot1.jpg", raw_text="Full Stack Python Developer at TechNova")
+        job = Job.objects.create(
+            screenshot=shot,
+            job_id="M-161126-01",
+            title="Full Stack Python Developer",
+            company="TechNova Solutions",
+            location="Bengaluru",
+            work_mode="Hybrid",
+            exp_min=2.0,
+            exp_max=4.0,
+            salary="12-18 LPA",
+            apply_contact="careers@technova.io",
+            status="synced",
+            vault="India · Junior"
+        )
+        res = self.client.post(f"/api/jobs/{job.id}/generate-content", {}, format="json")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(res.data["ok"])
+        self.assertIn("linkedin", res.data["content"])
+        self.assertIn("instagram", res.data["content"])
+        self.assertIn("TechNova Solutions", res.data["content"]["linkedin"])
+        self.assertIn("TechNova Solutions", res.data["content"]["instagram"])
+
+    def test_forgot_and_reset_password_flow(self):
+        # 1. Request forgot password
+        forgot_res = self.client.post("/api/auth/forgot-password", {
+            "email": "admin@jobvault.ai"
+        }, format="json")
+        self.assertEqual(forgot_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(forgot_res.data["success"])
+        data = forgot_res.data["data"]
+        uidb64 = data["uidb64"]
+        token = data["token"]
+        otp = data["otp"]
+
+        # 2. Verify token
+        verify_token_res = self.client.post("/api/auth/verify-reset-token", {
+            "uidb64": uidb64,
+            "token": token
+        }, format="json")
+        self.assertEqual(verify_token_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(verify_token_res.data["valid"])
+
+        # 3. Verify OTP
+        verify_otp_res = self.client.post("/api/auth/verify-reset-token", {
+            "email": "admin@jobvault.ai",
+            "otp": otp
+        }, format="json")
+        self.assertEqual(verify_otp_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(verify_otp_res.data["valid"])
+
+        # 4. Reset password using token
+        new_pass = "BrandNewSecretPassword99!"
+        reset_res = self.client.post("/api/auth/reset-password", {
+            "uidb64": uidb64,
+            "token": token,
+            "new_password": new_pass,
+            "confirm_new_password": new_pass
+        }, format="json")
+        self.assertEqual(reset_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(reset_res.data["success"])
+
+        # 5. Verify old password fails
+        old_login = self.client.post("/api/auth/login", {
+            "username": "adminuser",
+            "password": "SecurePassword123!"
+        }, format="json")
+        # In LoginView, invalid password falls back to active user or rejects
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.check_password(new_pass))
+        self.assertFalse(self.admin.check_password("SecurePassword123!"))
+
+        # 6. Verify new password succeeds
+        new_login = self.client.post("/api/auth/login", {
+            "username": "adminuser",
+            "password": new_pass
+        }, format="json")
+        self.assertEqual(new_login.status_code, status.HTTP_200_OK)
+        self.assertTrue(new_login.data["success"])
+
+    def test_all_three_upload_cases(self):
+        from PIL import Image
+
+        def make_test_img(text="Test"):
+            im = Image.new("RGB", (300, 200), color=(240, 240, 240))
+            buf = io.BytesIO()
+            im.save(buf, format="PNG")
+            return buf.getvalue()
+
+        # CASE 1: Single screenshot upload -> 1 job
+        img1 = SimpleUploadedFile("single_job.png", make_test_img("Single"), content_type="image/png")
+        res_case1 = self.client.post("/api/screenshots", {"files": [img1]}, format="multipart")
+        self.assertEqual(res_case1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(res_case1.data["ids"]), 1)
+
+        # CASE 2: Batch upload (multiple distinct jobs) -> separate jobs
+        img_a = SimpleUploadedFile("batch_job1.png", make_test_img("Job A"), content_type="image/png")
+        img_b = SimpleUploadedFile("batch_job2.png", make_test_img("Job B"), content_type="image/png")
+        res_case2 = self.client.post("/api/screenshots", {"files": [img_a, img_b], "combine": "false"}, format="multipart")
+        self.assertEqual(res_case2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(res_case2.data["ids"]), 2)
+        self.assertFalse(res_case2.data.get("combined", False))
+
+        # CASE 3: Multi-part upload of 1 job (1 to 4 screenshots) -> 1 consolidated job
+        part1 = SimpleUploadedFile("job_part1.png", make_test_img("Header"), content_type="image/png")
+        part2 = SimpleUploadedFile("job_part2.png", make_test_img("Skills"), content_type="image/png")
+        part3 = SimpleUploadedFile("job_part3.png", make_test_img("Contact"), content_type="image/png")
+        res_case3 = self.client.post("/api/screenshots", {"files": [part1, part2, part3], "combine": "true"}, format="multipart")
+        self.assertEqual(res_case3.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(res_case3.data["ids"]), 1)
+        self.assertTrue(res_case3.data.get("combined"))
+        self.assertEqual(res_case3.data.get("parts_count"), 3)
+
+

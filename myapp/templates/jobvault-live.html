@@ -180,8 +180,7 @@ td.t span{font-size:.78rem;color:var(--muted)}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .field label{font-size:.74rem;font-weight:600;color:var(--muted);display:flex;gap:6px;align-items:center}
 .field.flag .input{border-color:var(--warn);background:var(--warn-soft)}
-.field .ev{font-size:.72rem;color:var(--muted);font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.field .ev.none{color:var(--warn)}
+.field .ev{display:none!important}
 .exp-pair{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center}
 .ocr{font-family:var(--f-mono);font-size:.74rem;white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;color:var(--muted);max-height:220px;overflow:auto;margin:0}
 details summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--muted)}
@@ -757,8 +756,7 @@ function fieldInput(j, k, label, extra = '') {
   if (k === 'work_mode') input = `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
   else if (k === 'exp_min') input = `<div class="exp-pair"><input class="input mono" data-f="exp_min" inputmode="decimal" placeholder="min" value="${j.exp_min ?? ''}" aria-label="Minimum years"><span class="muted">to</span><input class="input mono" data-f="exp_max" inputmode="decimal" placeholder="max" value="${j.exp_max ?? ''}" aria-label="Maximum years"></div>`;
   else input = `<input class="input" data-f="${k}" value="${esc(j[k] ?? '')}" placeholder="${flagged ? 'Not readable in image' : ''}">`;
-  return `<div class="field ${flagged ? 'flag' : ''}" ${extra}><label>${label}${flagged ? '<span class="pill p-warn" style="padding:0 7px">check</span>' : ''}</label>${input}
-    <span class="ev ${ev ? '' : 'none'}">${ev ? 'from image: “' + esc(ev) + '”' : flagged ? 'not found in the image text' : ''}</span></div>`;
+  return `<div class="field ${flagged ? 'flag' : ''}" ${extra}><label>${label}${flagged ? '<span class="pill p-warn" style="padding:0 7px">check</span>' : ''}</label>${input}</div>`;
 }
 function reviewCard(j) {
   return `<div class="rcard" data-id="${j.id}">
@@ -889,9 +887,14 @@ async function openJob(id) {
   let j;
   try { j = await api(`/jobs/${id}`); } catch (e) { return fail(e); }
   const F = [['title', 'Job title'], ['company', 'Company'], ['location', 'Location'], ['country', 'Country'], ['exp_min', 'Experience'], ['salary', 'Salary / CTC'], ['work_mode', 'Work mode'], ['apply_contact', 'Apply / contact']];
-  const show = k => k === 'exp_min' ? j.experience : j[k];
+  const cleanVal = v => (!v || v === 'null' || v === 'None' || v === 'undefined') ? '' : v;
+  const show = k => {
+    const v = k === 'exp_min' ? j.experience : j[k];
+    const c = cleanVal(v);
+    return c || '—';
+  };
   $('#layer').innerHTML = `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-modal="true" aria-label="${j.code}">
-    <div class="dh"><div><div class="row"><span class="mono muted small">${j.code}</span>${pill(j.status)}${conf(j.confidence)}</div><h2 style="margin-top:6px;font-size:1.3rem">${esc(j.title || 'Untitled')}</h2><span class="muted">${esc(j.company || 'Company unclear')}</span></div><button class="btn sm" data-close>Close</button></div>
+    <div class="dh"><div><div class="row"><span class="mono muted small">${j.code}</span>${pill(j.status)}${conf(j.confidence)}</div><h2 style="margin-top:6px;font-size:1.3rem">${esc(cleanVal(j.title) || 'Untitled')}</h2><span class="muted">${esc(cleanVal(j.company) || 'Company unclear')}</span></div><button class="btn sm" data-close>Close</button></div>
     <div class="db"><div style="display:flex;flex-direction:column;gap:10px">${j.image ? `<img class="shot-img" src="${withT(j.image)}" alt="Original screenshot" data-zoom="${withT(j.image)}">` : '<div class="empty">Screenshot removed</div>'}
       <div class="muted mono small" style="word-break:break-all">${esc(j.original_name || '')}</div>
       <details ${j.raw_text ? '' : 'hidden'}><summary>Text the AI read from the image</summary><pre class="ocr">${esc(j.raw_text || '')}</pre></details></div>
@@ -900,9 +903,8 @@ async function openJob(id) {
         ${j.status === 'duplicate' && j.duplicate_of ? `<div class="banner info"><b>Duplicate</b><span>Same job as <button class="btn sm ghost" data-open="${j.duplicate_of}">JV-${j.duplicate_of}</button>. It was not added twice.</span></div>` : ''}
         <form id="editForm" class="fields" style="grid-template-columns:minmax(0,1fr)">
           ${F.map(([k, n]) => `<div class="field ${j.flags.includes(k) ? 'flag' : ''}"><label>${n}</label>
-            <div class="view-v" style="font-weight:600">${esc(show(k) || '—')}</div>
-            <div class="edit-v" hidden>${k === 'exp_min' ? `<div class="exp-pair"><input class="input mono" data-f="exp_min" value="${j.exp_min ?? ''}" inputmode="decimal"><span class="muted">to</span><input class="input mono" data-f="exp_max" value="${j.exp_max ?? ''}" inputmode="decimal"></div>` : k === 'work_mode' ? `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>` : `<input class="input" data-f="${k}" value="${esc(j[k] ?? '')}">`}</div>
-            ${k !== 'country' ? `<span class="ev ${j.evidence[k === 'exp_min' ? 'exp' : k] ? '' : 'none'}">${j.evidence[k === 'exp_min' ? 'exp' : k] ? 'from image: “' + esc(j.evidence[k === 'exp_min' ? 'exp' : k]) + '”' : show(k) ? 'edited by you' : 'not in the image'}</span>` : ''}</div>`).join('')}
+            <div class="view-v" style="font-weight:600">${esc(show(k))}</div>
+            <div class="edit-v" hidden>${k === 'exp_min' ? `<div class="exp-pair"><input class="input mono" data-f="exp_min" value="${j.exp_min ?? ''}" inputmode="decimal"><span class="muted">to</span><input class="input mono" data-f="exp_max" value="${j.exp_max ?? ''}" inputmode="decimal"></div>` : k === 'work_mode' ? `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>` : `<input class="input" data-f="${k}" value="${esc(cleanVal(j[k]))}">`}</div></div>`).join('')}
           <div class="field edit-v" hidden><label>Vault</label><select class="input" data-f="vault"><option value="">Sort automatically</option>${vaults().map(v => `<option ${v === j.vault ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
         </form>
       </div></div>

@@ -1,15 +1,21 @@
 import csv
 import io
 import os
+import random
 from datetime import timedelta
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from django.shortcuts import render
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.core.mail import send_mail
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from PIL import Image
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -20,11 +26,14 @@ from myapp.models import ActivityLog, AppSetting, Job, Screenshot, User
 from myapp.serializers import (
     ActivityLogSerializer,
     ChangePasswordSerializer,
+    ForgotPasswordSerializer,
     JobSerializer,
     LoginSerializer,
     RegisterSerializer,
+    ResetPasswordSerializer,
     ScreenshotSerializer,
     UserSerializer,
+    VerifyResetTokenSerializer,
 )
 from myapp.utils import (
     PROMPT,
@@ -81,7 +90,7 @@ class StatsView(APIView):
         vault_names = get_vault_names()
         by_vault = {}
         for v in vault_names:
-            by_vault[v] = Job.objects.filter(status="synced", vault=v).count()
+            by_vault[v] = Job.objects.filter(status="synced", vault__contains=v).count()
 
         # by source counts
         by_source_qs = (
@@ -131,6 +140,27 @@ class StatsView(APIView):
 
 
 # ------------------ Screenshots ------------------
+def stitch_images_vertically(pil_images):
+    """Vertically stitches a list of PIL Images into one continuous high-resolution image."""
+    if not pil_images:
+        return None
+    if len(pil_images) == 1:
+        return pil_images[0]
+
+    rgb_images = [img.convert("RGB") for img in pil_images]
+    max_w = max(img.width for img in rgb_images)
+    total_h = sum(img.height for img in rgb_images)
+
+    stitched = Image.new("RGB", (max_w, total_h), (255, 255, 255))
+    y = 0
+    for img in rgb_images:
+        x = (max_w - img.width) // 2
+        stitched.paste(img, (x, y))
+        y += img.height
+
+    return stitched
+
+
 class ScreenshotsView(APIView):
     permission_classes = [AllowAny]
 
@@ -151,13 +181,76 @@ class ScreenshotsView(APIView):
             if file_obj:
                 files = [file_obj]
 
+        if not files:
+            return Response({"error": "No files provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        combine_param = (
+            request.data.get("combine")
+            or request.query_params.get("combine")
+            or request.data.get("is_single_job")
+            or request.data.get("single_job")
+        )
+        is_combine = str(combine_param).lower().strip() in ["true", "1", "yes", "single"]
+
         ids = []
+
+        # =========================================================================
+        # CASE 3: Combine 1 to 4+ screenshots of the SAME job into 1 consolidated job
+        # =========================================================================
+        if is_combine and len(files) > 1:
+            try:
+                pil_images = []
+                for f in files:
+                    orig_name = f.name or "screenshot.png"
+                    if orig_name.lower().endswith(".pdf") or getattr(f, "content_type", "") == "application/pdf":
+                        import pypdfium2 as pdfium
+                        doc = pdfium.PdfDocument(f.read())
+                        for page in doc:
+                            pil_images.append(page.render(scale=2.0).to_pil())
+                    else:
+                        pil_images.append(Image.open(f))
+
+                stitched = stitch_images_vertically(pil_images)
+                img_io = io.BytesIO()
+                stitched.save(img_io, format="PNG")
+                img_bytes = img_io.getvalue()
+
+                base_first = os.path.splitext(files[0].name)[0]
+                combined_filename = f"combined_{base_first}_{len(pil_images)}parts.png"
+                combined_origname = f"{files[0].name} (Combined {len(pil_images)} parts)"
+
+                content_file = ContentFile(img_bytes, name=combined_filename)
+                screenshot = Screenshot.objects.create(
+                    file=content_file,
+                    original_name=combined_origname,
+                    filename=combined_filename,
+                    size=len(img_bytes),
+                    origin="upload",
+                    stage="received",
+                )
+                process_screenshot(screenshot)
+                ids.append(screenshot.id)
+
+                ActivityLog.objects.create(
+                    action="Upload",
+                    details=f"Combined {len(pil_images)} parts into 1 single job ({screenshot.original_name})"
+                )
+                return Response(
+                    {"ids": ids, "combined": True, "parts_count": len(pil_images)},
+                    status=status.HTTP_201_CREATED,
+                )
+            except Exception as e:
+                # If stitching throws error, fallback to independent processing below
+                pass
+
+        # =========================================================================
+        # CASE 1 (1 file = 1 job) & CASE 2 (Multiple separate jobs: 10 files = 10 jobs)
+        # =========================================================================
         for f in files:
             orig_name = f.name or "screenshot.jpg"
             is_pdf = orig_name.lower().endswith(".pdf") or getattr(f, "content_type", "") == "application/pdf"
 
             if is_pdf:
-                # PDF upload: convert each page to a high-resolution screenshot image
                 try:
                     import pypdfium2 as pdfium
                     pdf_bytes = f.read()
@@ -165,29 +258,49 @@ class ScreenshotsView(APIView):
                     num_pages = len(doc)
                     base_name = os.path.splitext(orig_name)[0]
 
-                    for i, page in enumerate(doc, start=1):
-                        # Render at 2.0x scale (crisp ~144 DPI for Vision AI OCR)
-                        rendered_img = page.render(scale=2.0).to_pil()
+                    # If combine is active for this single multi-page PDF (Case 3 via PDF):
+                    if is_combine and num_pages > 1:
+                        pdf_images = [page.render(scale=2.0).to_pil() for page in doc]
+                        stitched = stitch_images_vertically(pdf_images)
                         img_io = io.BytesIO()
-                        rendered_img.save(img_io, format="PNG")
+                        stitched.save(img_io, format="PNG")
                         img_bytes = img_io.getvalue()
 
-                        page_orig_name = f"{base_name} (Page {i}).png" if num_pages > 1 else f"{base_name}.png"
-                        page_filename = f"{base_name}_p{i}.png" if num_pages > 1 else f"{base_name}.png"
-
-                        content_file = ContentFile(img_bytes, name=page_filename)
+                        combined_filename = f"{base_name}_stitched.png"
+                        combined_origname = f"{orig_name} (Combined {num_pages} pages)"
+                        content_file = ContentFile(img_bytes, name=combined_filename)
                         screenshot = Screenshot.objects.create(
                             file=content_file,
-                            original_name=page_orig_name,
-                            filename=page_filename,
+                            original_name=combined_origname,
+                            filename=combined_filename,
                             size=len(img_bytes),
                             origin="upload",
                             stage="received",
                         )
                         process_screenshot(screenshot)
                         ids.append(screenshot.id)
+                    else:
+                        for i, page in enumerate(doc, start=1):
+                            rendered_img = page.render(scale=2.0).to_pil()
+                            img_io = io.BytesIO()
+                            rendered_img.save(img_io, format="PNG")
+                            img_bytes = img_io.getvalue()
+
+                            page_orig_name = f"{base_name} (Page {i}).png" if num_pages > 1 else f"{base_name}.png"
+                            page_filename = f"{base_name}_p{i}.png" if num_pages > 1 else f"{base_name}.png"
+
+                            content_file = ContentFile(img_bytes, name=page_filename)
+                            screenshot = Screenshot.objects.create(
+                                file=content_file,
+                                original_name=page_orig_name,
+                                filename=page_filename,
+                                size=len(img_bytes),
+                                origin="upload",
+                                stage="received",
+                            )
+                            process_screenshot(screenshot)
+                            ids.append(screenshot.id)
                 except Exception as e:
-                    # If PDF conversion fails, record as failed screenshot
                     screenshot = Screenshot.objects.create(
                         file=f,
                         original_name=orig_name,
@@ -213,7 +326,8 @@ class ScreenshotsView(APIView):
         count_str = f"{len(ids)} screenshot{'s' if len(ids) > 1 else ''}"
         ActivityLog.objects.create(action="Upload", details=f"{count_str} uploaded")
 
-        return Response({"ids": ids}, status=status.HTTP_201_CREATED)
+        return Response({"ids": ids, "combined": False}, status=status.HTTP_201_CREATED)
+
 
 
 class ScreenshotRetryView(APIView):
@@ -267,7 +381,7 @@ class JobsListView(APIView):
             queryset = queryset.exclude(status="rejected")
 
         if vault and vault != "all":
-            queryset = queryset.filter(vault=vault)
+            queryset = queryset.filter(vault__contains=vault)
 
         if source and source != "all":
             queryset = queryset.filter(source_app=source)
@@ -427,6 +541,72 @@ class JobRestoreView(APIView):
         job.save(update_fields=["status", "duplicate_of"])
         ActivityLog.objects.create(action="Review", details=f"JV-{job.id} moved back to review")
         return Response(JobSerializer(job, context={"request": request}).data)
+
+
+class JobGenerateContentView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        try:
+            job = Job.objects.get(pk=pk)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        platform = request.data.get("platform") or request.query_params.get("platform", "all")
+        platform = str(platform).lower().strip()
+        tone = request.data.get("tone") or request.query_params.get("tone", "professional")
+
+        from myapp.utils import generate_social_content, format_social_post_text
+        raw_content = generate_social_content(job, platform=platform, tone=tone)
+
+        li_post = format_social_post_text(raw_content.get("linkedin"))
+        ig_caption = format_social_post_text(raw_content.get("instagram"))
+
+        if platform == "linkedin":
+            content = {
+                "platform": "linkedin",
+                "post": li_post,
+                "linkedin": li_post,
+                "hashtags": raw_content.get("hashtags", []),
+                "summary": raw_content.get("summary", ""),
+                "engine": raw_content.get("engine"),
+            }
+        elif platform == "instagram":
+            content = {
+                "platform": "instagram",
+                "caption": ig_caption,
+                "instagram": ig_caption,
+                "hashtags": raw_content.get("hashtags", []),
+                "summary": raw_content.get("summary", ""),
+                "engine": raw_content.get("engine"),
+            }
+        else:
+            content = {
+                "linkedin": li_post,
+                "instagram": ig_caption,
+                "post": li_post,
+                "caption": ig_caption,
+                "hashtags": raw_content.get("hashtags", []),
+                "summary": raw_content.get("summary", ""),
+                "engine": raw_content.get("engine"),
+            }
+
+        ActivityLog.objects.create(
+            action="Social",
+            details=f"Generated {platform.upper()} content for {job.code} {job.title}"
+        )
+
+        return Response({
+            "ok": True,
+            "job_id": job.code,
+            "title": job.title,
+            "company": job.company,
+            "platform": platform,
+            "content": content,
+        })
+
+    def get(self, request, pk):
+        return self.post(request, pk)
 
 
 # ------------------ Settings ------------------
@@ -665,6 +845,39 @@ def format_job_export_row(job, s_no):
         apply_val,
     ]
 
+def job_matches_sheet(job, sheet_name):
+    from myapp.utils import get_job_vault_list
+    job_dict = job.__dict__ if hasattr(job, "__dict__") else job
+    vaults = get_job_vault_list(job_dict)
+    stored = str(getattr(job, "vault", "") or "")
+
+    if sheet_name == "Remote Access Vault" or sheet_name == "Remote":
+        return "Remote" in vaults or "Remote" in stored or "remote" in str(getattr(job, "work_mode", "") or "").lower()
+    if sheet_name == "UAE & Global Access Vault" or sheet_name == "Global":
+        country = str(getattr(job, "country", "") or "").strip().lower()
+        return "Global" in vaults or "Global" in stored or (country and country != "india")
+    if sheet_name == "Early Career Access Vault" or sheet_name == "India · Fresher":
+        # 0-2 yrs (Fresher, 1, 2 yrs)
+        return "India · Fresher" in vaults or "India · Fresher" in stored
+    if sheet_name == "Management Access Vault":
+        # 2-5 yrs and 5-10 yrs (so 2-yr jobs appear in BOTH Early Career AND Management!)
+        return ("India · Junior" in vaults or "India · Mid-level" in vaults or
+                "India · Junior" in stored or "India · Mid-level" in stored)
+    if sheet_name == "India · Junior":
+        return "India · Junior" in vaults or "India · Junior" in stored
+    if sheet_name == "India · Mid-level":
+        return "India · Mid-level" in vaults or "India · Mid-level" in stored
+    if sheet_name == "Leadership Access Vault" or sheet_name == "India · Senior":
+        return "India · Senior" in vaults or "India · Senior" in stored
+    if sheet_name == "Executive Access Vault":
+        exp_hi = job.exp_max if job.exp_max is not None else job.exp_min
+        title_lower = str(getattr(job, "title", "") or "").lower()
+        is_exec = any(k in title_lower for k in ["ceo", "cxo", "cfo", "cto", "coo", "chro", "partner", "vp", "director"])
+        return (exp_hi is not None and exp_hi >= 15) or is_exec or str(getattr(job, "job_id", "")).startswith("E-")
+
+    return sheet_name in stored or sheet_name in vaults
+
+
 def get_job_vault_bucket(job):
     jid = str(job.job_id or "").strip().upper()
     if jid.startswith("C-"):
@@ -680,22 +893,16 @@ def get_job_vault_bucket(job):
     if jid.startswith("G-"):
         return "UAE & Global Access Vault"
 
-    ev_sheet = str((job.evidence or {}).get("sheet") or "").strip()
-    if ev_sheet in STANDARD_VAULT_SHEETS:
-        return ev_sheet
-
-    v = str(job.vault or "").strip().lower()
-    if "remote" in v:
+    v = str(job.vault or "").strip()
+    if "Remote" in v:
         return "Remote Access Vault"
-    if "global" in v or "uae" in v:
+    if "Global" in v:
         return "UAE & Global Access Vault"
-    if "fresher" in v or "early" in v:
+    if "Fresher" in v:
         return "Early Career Access Vault"
-    if "executive" in v:
-        return "Executive Access Vault"
-    if "senior" in v or "leadership" in v:
+    if "Senior" in v:
         return "Leadership Access Vault"
-    if "mid" in v or "junior" in v or "management" in v:
+    if "Junior" in v or "Mid" in v:
         return "Management Access Vault"
 
     return "Early Career Access Vault"
@@ -714,7 +921,7 @@ class ExportCsvView(APIView):
         if stat and stat != "all":
             qs = qs.filter(status=stat)
         if vault and vault != "all":
-            matching_ids = [j.id for j in qs if get_job_vault_bucket(j) == vault or j.vault == vault]
+            matching_ids = [j.id for j in qs if job_matches_sheet(j, vault) or vault in str(j.vault or "")]
             qs = qs.filter(id__in=matching_ids)
         if source and source != "all":
             qs = qs.filter(source_app=source)
@@ -805,7 +1012,7 @@ class ExportExcelView(APIView):
 
         if vault_filter and vault_filter != "all":
             target_name = vault_filter
-            filtered_jobs = [j for j in qs if get_job_vault_bucket(j) == target_name or j.vault == vault_filter]
+            filtered_jobs = [j for j in qs if job_matches_sheet(j, target_name) or target_name in str(j.vault or "")]
             ws_single = wb.active
             ws_single.title = target_name[:31]
             populate_sheet(ws_single, filtered_jobs)
@@ -815,7 +1022,7 @@ class ExportExcelView(APIView):
             populate_sheet(ws_all, qs)
 
             for sheet_name in STANDARD_VAULT_SHEETS:
-                vault_jobs = [j for j in qs if get_job_vault_bucket(j) == sheet_name]
+                vault_jobs = [j for j in qs if job_matches_sheet(j, sheet_name)]
                 ws_v = wb.create_sheet(title=sheet_name)
                 populate_sheet(ws_v, vault_jobs)
 
@@ -984,3 +1191,188 @@ class ChangePasswordView(APIView):
             {"success": True, "message": "Password changed successfully."},
             status=status.HTTP_200_OK,
         )
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email_or_user = serializer.validated_data["email"]
+
+        user = User.objects.filter(Q(email__iexact=email_or_user) | Q(username__iexact=email_or_user)).first()
+        if not user:
+            return Response({"error": "No user found with this email."}, status=status.HTTP_404_NOT_FOUND)
+
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        otp = f"{random.randint(100000, 999999)}"
+
+        expires_at = timezone.now() + timedelta(minutes=15)
+        AppSetting.objects.update_or_create(
+            key=f"reset_otp_{user.id}",
+            defaults={"value": {"otp": otp, "expires_at": expires_at.isoformat()}}
+        )
+
+        subject = "JobVault AI — Password Reset Verification"
+        body = (
+            f"Hello {user.username},\n\n"
+            f"You requested to reset your password for JobVault AI.\n\n"
+            f"Your 6-Digit Verification OTP: {otp}\n"
+            f"Reset Token: {token}\n"
+            f"User ID (UID): {uidb64}\n\n"
+            f"This code will expire in 15 minutes.\n"
+            f"If you did not request this, please ignore this email.\n\n"
+            f"— JobVault AI Security Team"
+        )
+        try:
+            from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@jobvault.ai")
+            send_mail(subject, body, from_email, [user.email], fail_silently=True)
+        except Exception:
+            pass
+
+        ActivityLog.objects.create(
+            actor=user,
+            action="PASSWORD_RESET_REQUEST",
+            details=f"Password reset requested for '{user.username}' ({user.email}).",
+            ip_address=get_client_ip(request),
+        )
+
+        return Response(
+            {
+                "success": True,
+                "message": "Password reset instructions and verification code have been generated.",
+                "data": {
+                    "email": user.email,
+                    "username": user.username,
+                    "uidb64": uidb64,
+                    "token": token,
+                    "otp": otp,
+                    "expires_in_minutes": 15,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class VerifyResetTokenView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = VerifyResetTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        uidb64 = data.get("uidb64")
+        token = data.get("token")
+        email = data.get("email")
+        otp = data.get("otp")
+
+        user = None
+        if uidb64:
+            try:
+                user_id = force_str(urlsafe_base64_decode(uidb64))
+                user = User.objects.filter(pk=user_id, is_active=True).first()
+            except Exception:
+                user = None
+        elif email:
+            user = User.objects.filter(Q(email__iexact=email) | Q(username__iexact=email), is_active=True).first()
+
+        if not user:
+            return Response({"valid": False, "error": "Invalid user account or token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Check OTP
+        if otp:
+            otp_obj = AppSetting.objects.filter(key=f"reset_otp_{user.id}").first()
+            if not otp_obj or not isinstance(otp_obj.value, dict):
+                return Response({"valid": False, "error": "No pending reset request found or OTP expired."}, status=status.HTTP_400_BAD_REQUEST)
+            stored_otp = otp_obj.value.get("otp")
+            expires_at_str = otp_obj.value.get("expires_at")
+            if stored_otp != otp:
+                return Response({"valid": False, "error": "Incorrect OTP code."}, status=status.HTTP_400_BAD_REQUEST)
+            if expires_at_str and timezone.now() > timezone.datetime.fromisoformat(expires_at_str):
+                return Response({"valid": False, "error": "OTP has expired."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"valid": True, "message": "OTP is valid.", "email": user.email})
+
+        # 2. Check Token
+        if token:
+            if not default_token_generator.check_token(user, token):
+                return Response({"valid": False, "error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"valid": True, "message": "Token is valid.", "email": user.email})
+
+        return Response({"valid": False, "error": "Token or OTP verification failed."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResetPasswordConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        uidb64 = data.get("uidb64")
+        token = data.get("token")
+        email = data.get("email")
+        otp = data.get("otp")
+        new_password = data["new_password"]
+
+        user = None
+        if uidb64:
+            try:
+                user_id = force_str(urlsafe_base64_decode(uidb64))
+                user = User.objects.filter(pk=user_id, is_active=True).first()
+            except Exception:
+                user = None
+        elif email:
+            user = User.objects.filter(Q(email__iexact=email) | Q(username__iexact=email), is_active=True).first()
+
+        if not user:
+            return Response({"error": "User account not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_verified = False
+        # 1. Verify via OTP
+        if otp:
+            otp_obj = AppSetting.objects.filter(key=f"reset_otp_{user.id}").first()
+            if otp_obj and isinstance(otp_obj.value, dict):
+                stored_otp = otp_obj.value.get("otp")
+                expires_at_str = otp_obj.value.get("expires_at")
+                if stored_otp == otp:
+                    if not expires_at_str or timezone.now() <= timezone.datetime.fromisoformat(expires_at_str):
+                        is_verified = True
+            if not is_verified:
+                return Response({"error": "Invalid or expired OTP code."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Verify via Token
+        elif token:
+            if default_token_generator.check_token(user, token):
+                is_verified = True
+            else:
+                return Response({"error": "Invalid or expired reset token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not is_verified:
+            return Response({"error": "Verification failed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+
+        # Invalidate OTP
+        AppSetting.objects.filter(key=f"reset_otp_{user.id}").delete()
+
+        ActivityLog.objects.create(
+            actor=user,
+            action="ADMIN_PASSWORD_RESET",
+            details=f"Admin '{user.username}' reset their password via verification code/token.",
+            ip_address=get_client_ip(request),
+        )
+
+        return Response(
+            {
+                "success": True,
+                "message": "Password has been successfully reset. You can now login with your new password.",
+            },
+            status=status.HTTP_200_OK,
+        )
+

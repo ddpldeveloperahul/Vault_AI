@@ -1,0 +1,74 @@
+# ==========================================
+# JobVault AI — Git Ignore Configuration
+# ==========================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.cpython-*.pyc
+*/__pycache__/
+*/*/__pycache__/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# Environment Variables, Secrets & API Keys
+.env
+.env.*
+!.env.example
+secrets.json
+
+# User Uploaded Media & Screenshots
+media/
+media/screenshots/
+media/*
+
+# Database & SQLite files
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+
+# Logs & Debugging
+*.log
+logs/
+*.pid
+
+# Django Static & Cache
+staticfiles/
+local_settings.py
+
+# Testing & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+nosetests.xml
+
+# IDE, Code Editor & Tool Settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Operating System Cache
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+
+# Backups & Scratch files
+*.bak
+scratch/
+test_output/

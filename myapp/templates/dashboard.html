@@ -4,31 +4,58 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+(function() {
+  try {
+    const saved = localStorage.getItem('jv_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = saved || (prefersDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) {}
+})();
+</script>
 <style>
-/* JobVault AI — ink sidebar + working canvas; brass accent for actions; semantic colours for job state */
-:root{
-  --bg:#F1F3F6; --panel:#FFFFFF; --panel-2:#F6F7F9; --ink:#15202C; --muted:#5A6777; --line:#DCE1E8;
-  --accent:#9C6B12; --accent-ink:#FFFFFF; --accent-soft:#F5EAD3;
-  --side-bg:#15202C; --side-fg:#C9D2DD; --side-hi:#FFFFFF; --side-line:#26333F;
-  --ok:#24734A; --ok-soft:#DCF0E3; --warn:#9A5B00; --warn-soft:#FBEBCF; --bad:#A8281F; --bad-soft:#F8DEDB; --info:#235F8C; --info-soft:#DCEAF5;
-  --shadow:0 1px 2px rgba(21,32,44,.06),0 10px 30px rgba(21,32,44,.10);
+/* JobVault AI — Dual Theme (White / Light Mode & Dark Mode) */
+:root, :root[data-theme="light"]{
+  --bg:#F4F6F9; --panel:#FFFFFF; --panel-2:#F0F3F8; --bg-panel:#FFFFFF; --bg-sub:#F0F3F8;
+  --ink:#0F172A; --muted:#475569; --line:#E2E8F0; --border:#E2E8F0;
+  --accent:#B45309; --accent-ink:#FFFFFF; --accent-soft:#FEF3C7;
+  --side-bg:#FFFFFF; --side-fg:#475569; --side-hi:#0F172A; --side-line:#E2E8F0;
+  --ok:#16A34A; --ok-soft:#DCFCE7; --warn:#D97706; --warn-soft:#FEF3C7; --bad:#DC2626; --bad-soft:#FEE2E2; --info:#2563EB; --info-soft:#DBEAFE;
+  --shadow:0 1px 3px rgba(15,23,42,.06),0 10px 25px rgba(15,23,42,.05);
   --f-display:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;
   --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:8px; color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0D131A; --panel:#141C25; --panel-2:#18222D; --ink:#E5EAF0; --muted:#93A1B1; --line:#253240;
-  --accent:#D9A441; --accent-ink:#1A1206; --accent-soft:#3A2D14;
-  --side-bg:#090E14; --side-fg:#9EABBA; --side-hi:#FFFFFF; --side-line:#1B2530;
-  --ok:#62C48F; --ok-soft:#173826; --warn:#E8A93F; --warn-soft:#3B2B10; --bad:#F0847B; --bad-soft:#3F1E1B; --info:#7DB6E3; --info-soft:#152B3D;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark}}
+
 :root[data-theme="dark"]{
-  --bg:#0D131A; --panel:#141C25; --panel-2:#18222D; --ink:#E5EAF0; --muted:#93A1B1; --line:#253240;
-  --accent:#D9A441; --accent-ink:#1A1206; --accent-soft:#3A2D14;
-  --side-bg:#090E14; --side-fg:#9EABBA; --side-hi:#FFFFFF; --side-line:#1B2530;
-  --ok:#62C48F; --ok-soft:#173826; --warn:#E8A93F; --warn-soft:#3B2B10; --bad:#F0847B; --bad-soft:#3F1E1B; --info:#7DB6E3; --info-soft:#152B3D;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark}
+  --bg:#0B1017; --panel:#131B24; --panel-2:#1A232F; --bg-panel:#131B24; --bg-sub:#1A232F;
+  --ink:#F1F5F9; --muted:#94A3B8; --line:#243242; --border:#243242;
+  --accent:#EAB308; --accent-ink:#1A1305; --accent-soft:#3D2F09;
+  --side-bg:#070C12; --side-fg:#94A3B8; --side-hi:#FFFFFF; --side-line:#1E2B3A;
+  --ok:#34D399; --ok-soft:#064E3B; --warn:#FBBF24; --warn-soft:#451A03; --bad:#F87171; --bad-soft:#450A0A; --info:#60A5FA; --info-soft:#172554;
+  --shadow:0 2px 6px rgba(0,0,0,.4),0 16px 40px rgba(0,0,0,.5); color-scheme:dark;
+}
+
+body, .side, .panel, .login-card, .drawer, .modal, .tbl-wrap table, .input, .btn {
+  transition: background-color .2s ease, border-color .2s ease, color .15s ease;
+}
+
+/* theme toggle button & switch */
+.theme-btn{
+  background:rgba(255,255,255,0.06);border:1px solid var(--side-line);color:var(--side-fg);
+  border-radius:20px;padding:4px 8px;cursor:pointer;display:inline-flex;align-items:center;
+  justify-content:center;gap:5px;font-size:.85rem;font-weight:600;transition:all .18s ease;user-select:none;line-height:1;
+}
+.theme-btn:hover{background:var(--side-line);color:var(--side-hi);border-color:var(--accent);}
+:root[data-theme="light"] .theme-btn{background:#FFFFFF;border-color:var(--line);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06);}
+:root[data-theme="light"] .theme-btn:hover{background:var(--panel-2);border-color:var(--muted);}
+.theme-switch-wrap{display:flex;background:rgba(0,0,0,.25);border:1px solid var(--side-line);border-radius:18px;padding:2px;gap:2px;}
+:root[data-theme="light"] .theme-switch-wrap{background:var(--panel-2);border-color:var(--line);}
+.theme-opt{border:0;background:transparent;color:var(--side-fg);padding:4px 8px;border-radius:14px;font-size:.72rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;transition:all .15s ease;}
+:root[data-theme="light"] .theme-opt{color:var(--muted);}
+.theme-opt.active{background:var(--accent);color:var(--accent-ink);box-shadow:0 1px 3px rgba(0,0,0,.2);}
 
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
@@ -49,6 +76,7 @@ a{color:var(--info)}
 /* shell */
 .app{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100%}
 .side{background:var(--side-bg);color:var(--side-fg);padding:20px 14px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.side{background:var(--side-bg);color:var(--side-fg);padding:20px 14px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--side-line)}
 .brand{display:flex;align-items:center;gap:10px;padding:0 6px}
 .brand-mark{width:34px;height:34px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;flex:none}
 .brand b{display:block;font-family:var(--f-display);font-size:1.05rem}
@@ -168,7 +196,9 @@ td.t span{font-size:.78rem;color:var(--muted)}
 .segs i.done{background:var(--ok);border-color:var(--ok)}
 .segs i.act{background:var(--accent);border-color:var(--accent);animation:pulse 1s infinite}
 .segs i.fail{background:var(--bad);border-color:var(--bad)}
-.stage-l{font-size:.72rem;color:var(--muted);margin-top:4px}
+.prow .segwrap{min-width:0;overflow:hidden}
+.stage-l{font-size:.72rem;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.stage-l.err-text{color:var(--bad);font-weight:500}
 @keyframes pulse{50%{opacity:.4}}
 
 /* review */
@@ -181,8 +211,7 @@ td.t span{font-size:.78rem;color:var(--muted)}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .field label{font-size:.74rem;font-weight:600;color:var(--muted);display:flex;gap:6px;align-items:center}
 .field.flag .input{border-color:var(--warn);background:var(--warn-soft)}
-.field .ev{font-size:.72rem;color:var(--muted);font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.field .ev.none{color:var(--warn)}
+.field .ev{display:none!important}
 .exp-pair{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center}
 .ocr{font-family:var(--f-mono);font-size:.74rem;white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;color:var(--muted);max-height:220px;overflow:auto;margin:0}
 details summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--muted)}
@@ -235,11 +264,20 @@ details summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--mute
 .log .li{display:grid;grid-template-columns:150px 120px minmax(0,1fr);gap:12px;padding:9px 16px;border-bottom:1px solid var(--line);font-size:.84rem}
 .log .li:last-child{border-bottom:0}
 
-/* login & toasts */
-.login{min-height:100%;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
-.login-card{width:min(380px,100%);padding:24px;display:flex;flex-direction:column;gap:16px}
-.login-card .brand{padding:0}
-#toasts{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;width:max-content;max-width:calc(100% - 32px)}
+/* login & auth ui */
+.login{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at top, rgba(217,164,65,0.08), transparent 70%), var(--bg);position:fixed;inset:0;z-index:90;overflow-y:auto;}
+.login-card{width:min(420px,100%);padding:32px 28px;display:flex;flex-direction:column;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);}
+.login-card .brand{padding:0;margin-bottom:4px;}
+.auth-step{display:flex;flex-direction:column;gap:14px;}
+.auth-title{font-size:1.35rem;font-weight:700;margin:0;color:var(--ink);}
+.auth-sub{font-size:.85rem;color:var(--muted);line-height:1.4;}
+.auth-link{color:var(--accent);text-decoration:none;font-weight:600;cursor:pointer;font-size:.82rem;}
+.auth-link:hover{text-decoration:underline;}
+.auth-notice{padding:10px 14px;border-radius:6px;font-size:.82rem;line-height:1.4;}
+.auth-notice.info{background:var(--info-soft);color:var(--info);border:1px solid rgba(35,95,140,0.25);}
+.auth-notice.ok{background:var(--ok-soft);color:var(--ok);border:1px solid rgba(36,115,74,0.25);}
+.auth-notice.bad{background:var(--bad-soft);color:var(--bad);border:1px solid rgba(168,40,31,0.25);}
+#toasts{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;align-items:center;width:max-content;max-width:calc(100% - 32px)}
 .toast{background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:6px;font-weight:600;font-size:.85rem;box-shadow:var(--shadow)}
 .toast.bad{background:var(--bad)}
 .skeleton{height:120px;border-radius:var(--r);background:linear-gradient(90deg,var(--panel-2),var(--line),var(--panel-2));background-size:200% 100%;animation:sk 1.2s infinite}
@@ -280,7 +318,15 @@ details summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--mute
 
 <div class="app" id="app">
   <aside class="side">
-    <div class="brand"><div class="brand-mark">JV</div><div><b>JobVault AI</b><small>Screenshot → Excel</small></div></div>
+    <div class="brand spread" style="align-items:center;">
+      <div class="row" style="align-items:center;gap:10px;">
+        <div class="brand-mark">JV</div>
+        <div><b>JobVault AI</b><small>Screenshot → Excel</small></div>
+      </div>
+      <button class="theme-btn" data-act="toggleTheme" title="Toggle Theme" aria-label="Toggle Theme">
+        <span class="theme-icon">☀️</span>
+      </button>
+    </div>
     <nav class="navgroup nav" aria-label="Workspace">
       <div class="label">Workspace</div>
       <a href="#dashboard" data-v="dashboard"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</a>
@@ -302,7 +348,108 @@ details summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--mute
   <main class="main"><div class="wrap" id="view"></div></main>
 </div>
 
-<div class="login" id="login" style="display:none !important;" hidden></div>
+<div class="login" id="login" hidden>
+  <div class="login-card">
+    <div class="brand spread" style="align-items:center;margin-bottom:4px;">
+      <div class="row" style="align-items:center;gap:10px;">
+        <div class="brand-mark">JV</div>
+        <div><b>JobVault AI</b><small>Recruitment Automation Portal</small></div>
+      </div>
+      <button class="theme-btn" data-act="toggleTheme" title="Toggle Theme" aria-label="Toggle Theme">
+        <span class="theme-icon">☀️</span>
+      </button>
+    </div>
+
+    <!-- 1. LOGIN FORM -->
+    <form class="auth-step" id="loginForm">
+      <div>
+        <h2 class="auth-title">Admin Sign In</h2>
+        <p class="auth-sub">Enter your credentials to access the JobVault workspace.</p>
+      </div>
+
+      <div class="fg">
+        <label for="loginUser">Username or Email</label>
+        <input class="input" id="loginUser" type="text" placeholder="admin or admin@gmail.com" required autocomplete="username" value="admin">
+      </div>
+
+      <div class="fg">
+        <div class="row spread">
+          <label for="loginPass">Password</label>
+          <a class="auth-link" id="toForgotBtn" type="button">Forgot password?</a>
+        </div>
+        <input class="input" id="loginPass" type="password" placeholder="••••••••" required autocomplete="current-password" value="admin123">
+      </div>
+
+      <div id="loginNotice" class="auth-notice bad" style="display:none;"></div>
+
+      <button class="btn primary" id="loginSubmitBtn" type="submit" style="width:100%;justify-content:center;padding:10px;margin-top:2px;">
+        Sign In
+      </button>
+
+      <div class="row spread" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px;font-size:.78rem;">
+        <span class="muted">Default: <code class="mono">admin / admin123</code></span>
+        <a class="auth-link" id="quickLoginBtn">⚡ Quick Demo Login</a>
+      </div>
+    </form>
+
+    <!-- 2. FORGOT PASSWORD FORM: STEP 1 (REQUEST OTP) -->
+    <form class="auth-step" id="forgotForm" style="display:none;">
+      <div>
+        <h2 class="auth-title">Reset Password</h2>
+        <p class="auth-sub">Enter your registered email and we'll generate a 6-digit verification code (OTP).</p>
+      </div>
+
+      <div class="fg">
+        <label for="forgotEmail">Registered Email</label>
+        <input class="input" id="forgotEmail" type="email" placeholder="admin@gmail.com" required autocomplete="email" value="admin@gmail.com">
+      </div>
+
+      <div id="forgotNotice" class="auth-notice bad" style="display:none;"></div>
+
+      <button class="btn primary" id="forgotSubmitBtn" type="submit" style="width:100%;justify-content:center;padding:10px;">
+        Generate Verification Code (OTP)
+      </button>
+
+      <div style="text-align:center;margin-top:4px;">
+        <a class="auth-link" id="backToLoginFromForgot">← Back to Sign In</a>
+      </div>
+    </form>
+
+    <!-- 3. RESET PASSWORD CONFIRM FORM: STEP 2 (ENTER OTP & NEW PASSWORD) -->
+    <form class="auth-step" id="resetConfirmForm" style="display:none;">
+      <div>
+        <h2 class="auth-title">Enter Verification Code</h2>
+        <p class="auth-sub">Enter the 6-digit OTP code sent for <b id="resetEmailDisplay">admin@gmail.com</b></p>
+      </div>
+
+      <div class="fg">
+        <label for="resetOtp">6-Digit Verification Code (OTP)</label>
+        <input class="input mono" id="resetOtp" type="text" placeholder="123456" maxlength="6" required style="font-size:1.15rem;letter-spacing:5px;text-align:center;">
+        <span class="hint" id="otpDevHint"></span>
+      </div>
+
+      <div class="fg">
+        <label for="resetNewPass">New Password</label>
+        <input class="input" id="resetNewPass" type="password" placeholder="At least 8 characters" required autocomplete="new-password">
+      </div>
+
+      <div class="fg">
+        <label for="resetConfirmPass">Confirm New Password</label>
+        <input class="input" id="resetConfirmPass" type="password" placeholder="Re-enter new password" required autocomplete="new-password">
+      </div>
+
+      <div id="resetNotice" class="auth-notice bad" style="display:none;"></div>
+
+      <button class="btn primary" id="resetSubmitBtn" type="submit" style="width:100%;justify-content:center;padding:10px;">
+        Save Password &amp; Sign In
+      </button>
+
+      <div style="text-align:center;margin-top:4px;">
+        <a class="auth-link" id="backToLoginFromReset">← Cancel &amp; Back to Sign In</a>
+      </div>
+    </form>
+  </div>
+</div>
 <div id="layer"></div>
 <div id="toasts"></div>
 
@@ -357,11 +504,39 @@ const log = (actor, message, at = new Date()) => st.log.unshift({ id: st.log.len
 const vaultNames = () => { const r = st.settings.rules; return [...r.tiers.map(t => t.name), r.globalVault, r.remoteVault]; };
 const reqFields = () => st.settings.columns.filter(c => c.required).map(c => c.key === 'experience' ? 'exp_min' : c.key).filter(k => ['title', 'company', 'location', 'exp_min', 'salary', 'work_mode', 'apply_contact'].includes(k));
 function classify(j, r = st.settings.rules) {
-  if ((j.work_mode || '').toLowerCase() === 'remote') return r.remoteVault;
+  const matched = [];
+  const wm = (j.work_mode || '').toLowerCase();
+  const loc = (j.location || '').toLowerCase();
+  const title = (j.title || '').toLowerCase();
+  if (wm === 'remote' || loc.includes('remote') || title.includes('remote') || loc.includes('wfh') || loc.includes('work from home')) {
+    matched.push(r.remoteVault || 'Remote');
+  }
   const c = (j.country || '').trim();
-  if (c && c.toLowerCase() !== r.homeCountry.toLowerCase()) return r.globalVault;
-  for (const t of r.tiers) { if (t.below == null) return t.name; if (j.exp_min == null || j.exp_min < t.below) return t.name; }
-  return r.tiers[r.tiers.length - 1].name;
+  if (c && c.toLowerCase() !== (r.homeCountry || 'India').toLowerCase()) {
+    matched.push(r.globalVault || 'Global');
+  }
+
+  let lo = j.exp_min != null ? Number(j.exp_min) : null;
+  let hi = j.exp_max != null ? Number(j.exp_max) : lo;
+  if (lo == null) {
+    if (/(?:fresher|intern|trainee|entry)/i.test(title)) { lo = 0; hi = 0; }
+    else if (/(?:vp|director|head|cxo|chief|partner|president)/i.test(title)) { lo = 10; hi = 15; }
+    else if (/(?:manager|lead|senior)/i.test(title)) { lo = 5; hi = 8; }
+    else { lo = 0; hi = 0; }
+  }
+  if (hi == null) hi = lo;
+
+  // Fresher (0-2)
+  if (lo < 2 || (lo === 2 && hi <= 2)) matched.push('India · Fresher');
+  // Junior (2-5)
+  if ((lo >= 2 && lo < 5) || (hi > 2 && lo < 5) || (lo === 5 && hi <= 5)) matched.push('India · Junior');
+  // Mid-level (5-10)
+  if ((lo >= 5 && lo < 10) || (hi > 5 && lo < 10) || (lo === 10 && hi <= 10)) matched.push('India · Mid-level');
+  // Senior (10+)
+  if (hi > 10 || lo >= 10) matched.push('India · Senior');
+
+  if (!matched.length) matched.push('India · Fresher');
+  return [...new Set(matched)].join(', ');
 }
 const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const fp = j => j.title ? [norm(j.title), norm(j.company), norm(j.apply_contact || j.location)].join('|') : null;
@@ -627,7 +802,7 @@ const shot = id => st.shots.find(s => s.id === +id);
 const shape = j => { const s = shot(j.screenshot_id); return { ...j, code: `JV-${j.id}`, experience: expText(j), image: s?.image || null, original_name: s?.original_name, raw_text: s?.raw_text, filename: s?.filename, evidence: { ...j.evidence }, flags: [...j.flags] }; };
 function list(q) {
   return st.jobs.filter(j => (q.status && q.status !== 'all' ? j.status === q.status : j.status !== 'rejected')
-    && (!q.vault || q.vault === 'all' || j.vault === q.vault) && (!q.source || q.source === 'all' || j.source_app === q.source)
+    && (!q.vault || q.vault === 'all' || (j.vault && j.vault.includes(q.vault)) || (j.vaults && j.vaults.includes(q.vault))) && (!q.source || q.source === 'all' || j.source_app === q.source)
     && (!q.q || [j.title, j.company, j.location, j.salary].join(' ').toLowerCase().includes(q.q.toLowerCase()))).sort((a, b) => b.id - a.id).map(shape);
 }
 const ERR = (status, error, extra) => ({ status, body: { error, ...extra } });
@@ -649,11 +824,16 @@ const PROMPT = 'You are reading ONE screenshot of a job post shared on WhatsApp,
 function route(method, path, q, body) {
   let m;
   if (path === '/health') return { ok: true, provider: 'mock', authRequired: false };
-  if (path === '/login') return { token: 'open', open: true };
+  if (path === '/auth/login' || path === '/login') return { token: 'demo-jwt-token-2026', success: true, user: { id: 1, username: body.username || 'admin', email: 'admin@gmail.com' } };
+  if (path === '/auth/me') return { id: 1, username: 'admin', email: 'admin@gmail.com', role: 'ADMIN' };
+  if (path === '/auth/forgot-password') return { success: true, message: 'OTP sent', data: { email: body.email || 'admin@gmail.com', otp: '123456' } };
+  if (path === '/auth/reset-password') return { success: true, message: 'Password reset successfully' };
+  if (path === '/auth/change-password') return { success: true, message: 'Password changed successfully' };
+  if (path === '/auth/logout' || path === '/logout') return { success: true, message: 'Logged out' };
   if (path === '/stats') {
     const by = s => st.jobs.filter(j => j.status === s).length;
     const today = ts().slice(0, 10), weekAgo = ts(ago(7));
-    const byVault = Object.fromEntries(vaultNames().map(v => [v, st.jobs.filter(j => j.status === 'synced' && j.vault === v).length]));
+    const byVault = Object.fromEntries(vaultNames().map(v => [v, st.jobs.filter(j => j.status === 'synced' && ((j.vault && j.vault.includes(v)) || (j.vaults && j.vaults.includes(v)))).length]));
     const srcs = {}; st.jobs.filter(j => j.status !== 'rejected').forEach(j => srcs[j.source_app] = (srcs[j.source_app] || 0) + 1);
     const days = {}; st.jobs.filter(j => j.status === 'synced').forEach(j => { const d = j.created_at.slice(0, 10); days[d] = (days[d] || 0) + 1; });
     return { screenshots: st.shots.length, screenshotsWeek: st.shots.filter(s => s.created_at >= weekAgo).length, inSheet: by('synced'), addedToday: st.jobs.filter(j => j.status === 'synced' && j.created_at.startsWith(today)).length,
@@ -778,6 +958,16 @@ async function api(path, opts = {}) {
   const headers = { ...(opts.body && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...(S.token && S.token !== 'open' ? { Authorization: `Bearer ${S.token}` } : {}) };
   const res = await fetch(`/api${path}`, { ...opts, headers, body: opts.body && !(opts.body instanceof FormData) ? JSON.stringify(opts.body) : opts.body });
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
+  if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/forgot-password') && !path.startsWith('/auth/reset-password')) {
+    localStorage.removeItem('jv_token');
+    localStorage.removeItem('jv_user');
+    S.token = null;
+    S.user = null;
+    showLogin();
+    const e = new Error('Please sign in');
+    e.data = data;
+    throw e;
+  }
   if (!res.ok) { const e = new Error(data?.error || `Request failed (${res.status})`); e.data = data; throw e; }
   return data;
 }
@@ -789,6 +979,26 @@ function toast(msg, bad) {
   $('#toasts').appendChild(t); setTimeout(() => t.remove(), bad ? 5000 : 2800);
 }
 const fail = e => toast(e.message || String(e), true);
+function formatError(err) {
+  if (!err) return '';
+  const s = String(err).trim();
+  const lower = s.toLowerCase();
+  if (lower.includes('401') || lower.includes('incorrect api key') || lower.includes('invalid api key') || lower.includes('invalid_api_key') || lower.includes('api_key_invalid')) {
+    return 'OpenAI error: Invalid or incorrect API key. Please check your OPENAI_API_KEY in .env or Settings.';
+  }
+  if (lower.includes('insufficient_quota') || lower.includes('no credits remaining') || (lower.includes('429') && lower.includes('billing'))) {
+    return 'OpenAI error: Quota exceeded (no credits remaining). Please check OpenAI billing.';
+  }
+  if (lower.includes('rate_limit') || lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('resource_exhausted')) {
+    return 'OpenAI error: Rate limit reached. Please wait a moment and retry.';
+  }
+  if (lower.includes('timeout') || lower.includes('connection error') || lower.includes('timed out')) {
+    return 'Connection error. Please check your internet connection.';
+  }
+  return s.replace(/sk-[a-zA-Z0-9_\-*]+/gi, '[REDACTED_KEY]')
+          .replace(/AIzaSy[a-zA-Z0-9_\-*]+/gi, '[REDACTED_KEY]')
+          .replace(/\*{4,}/g, '****');
+}
 const when = s => { if (!s) return ''; const d = new Date(s.replace(' ', 'T') + 'Z'); return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 const day = s => { const d = new Date(s + 'T00:00:00'); return d.toLocaleDateString('en-IN', { day: '2-digit' }); };
 const pill = st => ({ synced: '<span class="pill p-ok">In sheet</span>', review: '<span class="pill p-warn">Needs review</span>', duplicate: '<span class="pill p-mute">Duplicate</span>', rejected: '<span class="pill p-bad">Rejected</span>' }[st] || '');
@@ -807,17 +1017,276 @@ const IC = {
 };
 const vaults = () => S.settings?.vaults || [];
 
-/* ---------- auth (Disabled - Direct Dashboard Access) ---------- */
-function showLogin() { if ($('#app')) $('#app').hidden = false; if ($('#login')) $('#login').style.display = 'none'; }
+/* ---------- theme switcher (White / Light Mode & Dark Mode) ---------- */
+function applyTheme(theme) {
+  if (theme !== 'light' && theme !== 'dark') {
+    theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+  try { localStorage.setItem('jv_theme', theme); } catch {}
+  updateThemeUI(theme);
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+}
+function updateThemeUI(theme) {
+  const isDark = theme === 'dark';
+  document.querySelectorAll('[data-act="toggleTheme"]').forEach(btn => {
+    btn.innerHTML = `<span class="theme-icon">${isDark ? '☀️' : '🌙'}</span>`;
+    btn.setAttribute('title', isDark ? 'Switch to White / Light Mode' : 'Switch to Dark Mode');
+  });
+  document.querySelectorAll('[data-theme-set]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.themeSet === theme);
+  });
+}
+
+/* ---------- auth & session management ---------- */
+function showLogin() {
+  if ($('#app')) $('#app').hidden = true;
+  if ($('#login')) {
+    $('#login').hidden = false;
+    $('#login').style.display = 'grid';
+  }
+  if ($('#loginForm')) $('#loginForm').style.display = 'flex';
+  if ($('#forgotForm')) $('#forgotForm').style.display = 'none';
+  if ($('#resetConfirmForm')) $('#resetConfirmForm').style.display = 'none';
+  if ($('#loginNotice')) $('#loginNotice').style.display = 'none';
+  if ($('#forgotNotice')) $('#forgotNotice').style.display = 'none';
+  if ($('#resetNotice')) $('#resetNotice').style.display = 'none';
+  updateThemeUI(document.documentElement.getAttribute('data-theme') || 'dark');
+}
+
+function showApp() {
+  if ($('#login')) {
+    $('#login').hidden = true;
+    $('#login').style.display = 'none';
+  }
+  if ($('#app')) $('#app').hidden = false;
+  updateThemeUI(document.documentElement.getAttribute('data-theme') || 'dark');
+}
+
+async function signOut() {
+  try { await api('/auth/logout', { method: 'POST' }); } catch {}
+  localStorage.removeItem('jv_token');
+  localStorage.removeItem('jv_user');
+  S.token = null;
+  S.user = null;
+  toast('Signed out successfully');
+  showLogin();
+}
+
+function openChangePasswordModal() {
+  $('#layer').innerHTML = `
+    <div class="scrim" data-close></div>
+    <div class="modal" role="dialog" aria-modal="true" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:95;width:min(440px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;box-shadow:var(--shadow);">
+      <div class="row spread" style="align-items:center;margin-bottom:14px;">
+        <h3 style="margin:0;font-size:1.15rem;color:var(--ink);">Change Admin Password</h3>
+        <button class="btn sm ghost" data-close>✕</button>
+      </div>
+      <form id="changePasswordForm" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="fg">
+          <label for="cpOld">Current Password</label>
+          <input class="input" id="cpOld" type="password" required placeholder="Enter current password">
+        </div>
+        <div class="fg">
+          <label for="cpNew">New Password</label>
+          <input class="input" id="cpNew" type="password" required placeholder="At least 8 characters">
+        </div>
+        <div class="fg">
+          <label for="cpConfirm">Confirm New Password</label>
+          <input class="input" id="cpConfirm" type="password" required placeholder="Re-enter new password">
+        </div>
+        <div id="cpNotice" class="auth-notice bad" style="display:none;"></div>
+        <div class="row spread" style="margin-top:6px;">
+          <button class="btn sm" type="button" data-close>Cancel</button>
+          <button class="btn primary sm" id="cpSubmitBtn" type="submit">Update Password</button>
+        </div>
+      </form>
+    </div>
+  `;
+  const form = $('#changePasswordForm');
+  if (form) {
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const notice = $('#cpNotice');
+      if (notice) notice.style.display = 'none';
+      const oldP = $('#cpOld').value;
+      const newP = $('#cpNew').value;
+      const confP = $('#cpConfirm').value;
+      if (newP !== confP) {
+        if (notice) { notice.textContent = 'New passwords do not match.'; notice.style.display = 'block'; }
+        return;
+      }
+      if (newP.length < 8) {
+        if (notice) { notice.textContent = 'Password must be at least 8 characters.'; notice.style.display = 'block'; }
+        return;
+      }
+      const btn = $('#cpSubmitBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Updating...'; }
+      try {
+        await api('/auth/change-password', {
+          method: 'POST',
+          body: { old_password: oldP, new_password: newP, confirm_new_password: confP }
+        });
+        toast('Password changed successfully!');
+        closeLayer();
+      } catch (err) {
+        if (notice) {
+          notice.textContent = err.data?.error || err.data?.old_password?.[0] || err.message || 'Failed to change password';
+          notice.style.display = 'block';
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Update Password'; }
+      }
+    });
+  }
+}
+
+// 1. Sign In Form Submission
 if ($('#loginForm')) {
   $('#loginForm').addEventListener('submit', async e => {
     e.preventDefault();
-    $('#login').hidden = true;
-    $('#app').hidden = false;
-    boot();
+    const notice = $('#loginNotice');
+    if (notice) notice.style.display = 'none';
+    const btn = $('#loginSubmitBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
+    try {
+      const username = $('#loginUser').value.trim();
+      const password = $('#loginPass').value;
+      const res = await api('/auth/login', { method: 'POST', body: { username, password } });
+      const token = res.token || res.tokens?.access;
+      if (!token) throw new Error('No access token received');
+      localStorage.setItem('jv_token', token);
+      S.token = token;
+      S.user = res.user || { username };
+      localStorage.setItem('jv_user', JSON.stringify(S.user));
+      toast('Welcome back, ' + (S.user.username || 'Admin'));
+      showApp();
+      if (!location.hash || location.hash === '#login') location.hash = '#dashboard';
+      await loadSettings();
+      updateThemeUI(document.documentElement.getAttribute('data-theme') || 'dark');
+      await render();
+    } catch (err) {
+      if (notice) {
+        notice.textContent = err.data?.error || err.data?.detail || err.message || 'Invalid username or password';
+        notice.style.display = 'block';
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+    }
   });
 }
-function signOut() { location.hash = '#dashboard'; render(); }
+
+// Quick Demo Login Shortcut
+if ($('#quickLoginBtn')) {
+  $('#quickLoginBtn').addEventListener('click', e => {
+    e.preventDefault();
+    $('#loginUser').value = 'admin';
+    $('#loginPass').value = 'admin123';
+    $('#loginForm').dispatchEvent(new Event('submit', { cancelable: true }));
+  });
+}
+
+// Navigation between Auth tabs
+if ($('#toForgotBtn')) {
+  $('#toForgotBtn').addEventListener('click', () => {
+    $('#loginForm').style.display = 'none';
+    $('#forgotForm').style.display = 'flex';
+    $('#resetConfirmForm').style.display = 'none';
+    if ($('#forgotNotice')) $('#forgotNotice').style.display = 'none';
+  });
+}
+
+if ($('#backToLoginFromForgot')) {
+  $('#backToLoginFromForgot').addEventListener('click', () => {
+    $('#forgotForm').style.display = 'none';
+    $('#loginForm').style.display = 'flex';
+    if ($('#loginNotice')) $('#loginNotice').style.display = 'none';
+  });
+}
+
+if ($('#backToLoginFromReset')) {
+  $('#backToLoginFromReset').addEventListener('click', () => {
+    $('#resetConfirmForm').style.display = 'none';
+    $('#loginForm').style.display = 'flex';
+    if ($('#loginNotice')) $('#loginNotice').style.display = 'none';
+  });
+}
+
+// 2. Forgot Password Request (Generate OTP)
+if ($('#forgotForm')) {
+  $('#forgotForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const notice = $('#forgotNotice');
+    if (notice) notice.style.display = 'none';
+    const btn = $('#forgotSubmitBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating OTP...'; }
+    try {
+      const email = $('#forgotEmail').value.trim();
+      const res = await api('/auth/forgot-password', { method: 'POST', body: { email } });
+      toast('Verification code generated!');
+      $('#resetEmailDisplay').textContent = email;
+      if (res.data?.otp) {
+        $('#resetOtp').value = res.data.otp;
+        $('#otpDevHint').innerHTML = `💡 Dev Mode Code: <b>${res.data.otp}</b> (auto-filled for testing)`;
+      } else {
+        $('#otpDevHint').textContent = 'Check your email inbox for the 6-digit verification code.';
+      }
+      $('#forgotForm').style.display = 'none';
+      $('#resetConfirmForm').style.display = 'flex';
+    } catch (err) {
+      if (notice) {
+        notice.textContent = err.data?.error || err.message || 'Failed to request reset code';
+        notice.style.display = 'block';
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Generate Verification Code (OTP)'; }
+    }
+  });
+}
+
+// 3. Reset Password Confirm (Verify OTP & Save New Password)
+if ($('#resetConfirmForm')) {
+  $('#resetConfirmForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const notice = $('#resetNotice');
+    if (notice) notice.style.display = 'none';
+    const btn = $('#resetSubmitBtn');
+    const email = $('#resetEmailDisplay').textContent.trim();
+    const otp = $('#resetOtp').value.trim();
+    const newPass = $('#resetNewPass').value;
+    const confirmPass = $('#resetConfirmPass').value;
+    if (newPass !== confirmPass) {
+      if (notice) { notice.textContent = 'Passwords do not match.'; notice.style.display = 'block'; }
+      return;
+    }
+    if (newPass.length < 8) {
+      if (notice) { notice.textContent = 'Password must be at least 8 characters.'; notice.style.display = 'block'; }
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+    try {
+      await api('/auth/reset-password', {
+        method: 'POST',
+        body: { email, otp, new_password: newPass, confirm_new_password: confirmPass }
+      });
+      toast('Password updated! Please sign in with your new password.');
+      $('#resetConfirmForm').style.display = 'none';
+      $('#loginForm').style.display = 'flex';
+      $('#loginUser').value = email;
+      $('#loginPass').value = newPass;
+    } catch (err) {
+      if (notice) {
+        notice.textContent = err.data?.error || err.message || 'Failed to reset password';
+        notice.style.display = 'block';
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save Password & Sign In'; }
+    }
+  });
+}
 
 /* ---------- views ---------- */
 const V = {};
@@ -875,6 +1344,13 @@ V.inbox = async () => {
       <span class="muted small">PNG, JPG, WEBP, HEIC or PDF · up to ${500} files at a time · you can also paste an image with Ctrl+V</span>
       <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,application/pdf,.pdf" multiple hidden>
     </label>
+    <div class="row spread" style="margin-top:12px;padding:9px 14px;background:var(--panel-2);border-radius:6px;border:1px solid var(--line);align-items:center;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:.85rem;user-select:none;">
+        <input type="checkbox" id="combineUpload" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+        <span>📎 Combine screenshots into 1 single job (1–4 parts of the same job posting)</span>
+      </label>
+      <span class="muted small">Uncheck for batch upload (1 file = 1 job)</span>
+    </div>
     <div id="upProg" class="row" style="margin-top:12px" hidden><span class="small muted" id="upTxt"></span><div class="progress"><i id="upBar" style="width:0"></i></div></div>
   </div></div>
   <div class="panel"><div class="panel-h"><h2>Recent screenshots</h2><span class="muted small" id="qInfo">${d.queue.queued + d.queue.running ? `${d.queue.running} reading now · ${d.queue.queued} waiting` : 'Queue is empty'}</span></div>
@@ -898,10 +1374,13 @@ function shotRows(items) {
     const imgHtml = s.image
       ? `<img src="${withT(s.image)}" alt="" loading="lazy" data-zoom="${withT(s.image)}">`
       : `<div class="ph" style="display:flex;align-items:center;justify-content:center;color:var(--muted)"><svg viewBox="0 0 24 24" style="width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>`;
+    const errText = formatError(s.error);
+    const hasErr = Boolean(errText && (s.stage === 'failed' || s.error));
+    const stageText = s.stage === 'failed' ? (errText || 'Failed') : (errText ? errText : STAGE_LABEL[s.stage]);
     return `<div class="prow">
       ${imgHtml}
       <div style="min-width:0"><div class="fn" title="${esc(s.original_name)}">${esc(s.original_name)}</div><div class="muted small">${when(s.created_at)} · ${s.origin === 'drive' ? 'Google Drive' : 'Uploaded'}${s.source_app ? ' · ' + esc(s.source_app) : ''}</div></div>
-      <div class="segwrap"><div class="segs">${segs}</div><div class="stage-l">${esc(s.stage === 'failed' ? (s.error || 'Failed') : s.stage === 'saved' && s.error ? s.error : STAGE_LABEL[s.stage])}</div></div>
+      <div class="segwrap"><div class="segs">${segs}</div><div class="stage-l ${hasErr ? 'err-text' : ''}" title="${esc(hasErr ? errText : STAGE_LABEL[s.stage])}">${esc(stageText)}</div></div>
       <div class="res row" style="gap:6px">${res}</div>
       <button class="btn sm ghost bad" data-delshot="${s.id}" title="Remove screenshot" aria-label="Remove screenshot">✕</button>
     </div>`;
@@ -932,7 +1411,7 @@ async function loadJobs() {
   $('#xlsxBtn').href = withT('/api/export.xlsx?' + exp); $('#csvBtn').href = withT('/api/export.csv?' + exp);
   $('#cnt').textContent = `${d.items.length} job${d.items.length === 1 ? '' : 's'}`;
   $('#jt').innerHTML = d.items.length ? `<table><thead><tr><th>ID</th><th>Job title / company</th><th>Location</th><th>Experience</th><th>Salary</th><th>Vault</th><th>Source</th><th>Confidence</th><th>Status</th></tr></thead><tbody>
-    ${d.items.map(j => `<tr class="click" data-open="${j.id}"><td class="mono muted small">${j.code}</td><td class="t"><b>${esc(j.title || '—')}</b><span>${esc(j.company || '—')}</span></td><td>${esc(j.location || '—')}${j.work_mode ? `<div class="muted small">${esc(j.work_mode)}</div>` : ''}</td><td class="mono">${esc(j.experience || '—')}</td><td>${esc(j.salary || '—')}</td><td><span class="vault-tag">${esc(j.vault)}</span></td><td>${src(j.source_app)}</td><td>${conf(j.confidence)}</td><td>${pill(j.status)}</td></tr>`).join('')}
+    ${d.items.map(j => `<tr class="click" data-open="${j.id}"><td class="mono muted small">${j.code}</td><td class="t"><b>${esc(j.title || '—')}</b><span>${esc(j.company || '—')}</span></td><td>${esc(j.location || '—')}${j.work_mode ? `<div class="muted small">${esc(j.work_mode)}</div>` : ''}</td><td class="mono">${esc(j.experience || '—')}</td><td>${esc(j.salary || '—')}</td><td>${(j.vaults && j.vaults.length ? j.vaults : [j.vault]).map(v => `<span class="vault-tag" style="margin-right:4px">${esc(v)}</span>`).join('')}</td><td>${src(j.source_app)}</td><td>${conf(j.confidence)}</td><td>${pill(j.status)}</td></tr>`).join('')}
   </tbody></table>` : `<div class="empty"><b>No jobs match</b><span>Try another vault or status, or clear the search.</span></div>`;
 }
 function copyExcel() {
@@ -977,11 +1456,15 @@ V.vaults = async () => {
   const [st, list] = await Promise.all([api('/stats'), api('/jobs?status=synced&limit=2000')]);
   const r = S.settings.rules;
   const desc = {};
-  r.tiers.forEach((t, i) => { const lo = i ? r.tiers[i - 1].below : 0; desc[t.name] = `${r.homeCountry} · ${t.below == null ? `${lo}+ yrs` : i ? `${lo}–${t.below} yrs` : `under ${t.below} yrs`}`; });
+  r.tiers.forEach((t, i) => { const lo = i ? r.tiers[i - 1].below : 0; desc[t.name] = `${r.homeCountry} · ${t.below == null ? `${lo}+ yrs` : i ? `${lo}–${t.below} yrs` : `0–${t.below} yrs`}`; });
+  desc['India · Fresher'] = `${r.homeCountry} · 0–2 yrs (Freshers & 1, 2 yrs)`;
+  desc['India · Junior'] = `${r.homeCountry} · 2–5 yrs (2, 3, 4, 5 yrs)`;
+  desc['India · Mid-level'] = `${r.homeCountry} · 5–10 yrs (5 to 10 yrs)`;
+  desc['India · Senior'] = `${r.homeCountry} · 10+ yrs`;
   desc[r.globalVault] = `Outside ${r.homeCountry}, not remote`; desc[r.remoteVault] = 'Remote / work from anywhere';
   return head('', 'Vaults', 'Each vault is a tab in the Excel file and in Google Sheets. Change how jobs are sorted in Vault rules.', '<a class="btn" href="#rules">Edit vault rules</a>') +
   `<div class="grid g-3">${vaults().map(v => {
-    const jobs = list.items.filter(j => j.vault === v);
+    const jobs = list.items.filter(j => j.vaults ? j.vaults.includes(v) : (j.vault && j.vault.includes(v)));
     return `<div class="panel"><div class="panel-h"><div><h2>${esc(v)}</h2><span class="muted small">${esc(desc[v] || '')}</span></div><span class="mono" style="font-size:1.4rem">${st.byVault[v] || 0}</span></div>
      <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${jobs.length ? jobs.slice(0, 5).map(j => `<button class="btn ghost" data-open="${j.id}" style="justify-content:space-between;text-align:left;white-space:normal;font-weight:500"><span><b style="display:block">${esc(j.title)}</b><span class="muted small">${esc(j.company || '')}${j.location ? ' · ' + esc(j.location) : ''}</span></span><span class="mono muted small">${esc(j.experience)}</span></button>`).join('') + (jobs.length > 5 ? `<a class="btn sm ghost" href="#jobs" data-vault="${esc(v)}">See all ${jobs.length}</a>` : '') : '<span class="muted">No jobs in this vault yet.</span>'}</div></div>`;
   }).join('')}</div>`;
@@ -994,13 +1477,11 @@ V.review = async () => {
 };
 function fieldInput(j, k, label, extra = '') {
   const flagged = j.flags.includes(k);
-  const ev = j.evidence[k === 'exp_min' ? 'exp' : k];
   let input;
   if (k === 'work_mode') input = `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
   else if (k === 'exp_min') input = `<div class="exp-pair"><input class="input mono" data-f="exp_min" inputmode="decimal" placeholder="min" value="${j.exp_min ?? ''}" aria-label="Minimum years"><span class="muted">to</span><input class="input mono" data-f="exp_max" inputmode="decimal" placeholder="max" value="${j.exp_max ?? ''}" aria-label="Maximum years"></div>`;
   else input = `<input class="input" data-f="${k}" value="${esc(j[k] ?? '')}" placeholder="${flagged ? 'Not readable in image' : ''}">`;
-  return `<div class="field ${flagged ? 'flag' : ''}" ${extra}><label>${label}${flagged ? '<span class="pill p-warn" style="padding:0 7px">check</span>' : ''}</label>${input}
-    <span class="ev ${ev ? '' : 'none'}">${ev ? 'from image: “' + esc(ev) + '”' : flagged ? 'not found in the image text' : ''}</span></div>`;
+  return `<div class="field ${flagged ? 'flag' : ''}" ${extra}><label>${label}${flagged ? '<span class="pill p-warn" style="padding:0 7px">check</span>' : ''}</label>${input}</div>`;
 }
 function reviewCard(j) {
   return `<div class="rcard" data-id="${j.id}">
@@ -1126,25 +1607,150 @@ V.activity = async () => {
   `<div class="panel log">${d.items.length ? d.items.map(l => `<div class="li"><span class="mono muted small">${when(l.at)}</span><b>${esc(l.actor)}</b><span>${esc(l.message)}</span></div>`).join('') : '<div class="empty">Nothing yet.</div>'}</div>`;
 };
 
+/* ---------- AI Social Content Generator ---------- */
+async function openSocialModal(jobId) {
+  const modal = document.createElement('div');
+  modal.className = 'lightbox';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = `
+    <div class="panel" style="max-width:700px;width:100%;max-height:90vh;display:flex;flex-direction:column;background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 50px rgba(0,0,0,0.6);overflow:hidden;" onclick="event.stopPropagation()">
+      <div class="panel-h" style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h2 style="font-size:1.2rem;margin:0;display:flex;align-items:center;gap:8px">✨ AI Social Post Generator</h2>
+          <span class="muted small">Auto-generated from screenshot & job data for LinkedIn & Instagram</span>
+        </div>
+        <button class="btn sm ghost" id="closeSocialModal" style="font-size:1.1rem;padding:4px 8px;">✕</button>
+      </div>
+      <div style="padding:12px 20px;background:var(--bg-sub);border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div class="seg" id="socialPlatformSeg">
+          <button class="on" data-tab="linkedin">LinkedIn Post</button>
+          <button data-tab="instagram">Instagram Caption</button>
+        </div>
+        <button class="btn sm ghost" id="regenSocialBtn" style="margin-left:auto;">🔄 Regenerate</button>
+      </div>
+      <div style="padding:20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px" id="socialContentBody">
+        <div style="text-align:center;padding:50px 0;"><div class="skeleton" style="height:140px;margin-bottom:12px"></div><div class="muted small">Crafting engaging social media copy...</div></div>
+      </div>
+      <div class="panel-h" style="padding:14px 20px;border-top:1px solid var(--border);background:var(--bg-sub);display:flex;justify-content:flex-end;align-items:center;">
+        <button class="btn primary" id="copySocialBtn">📋 Copy for LinkedIn</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.querySelector('#closeSocialModal').onclick = () => modal.remove();
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  let activeTab = 'linkedin';
+  let data = null;
+
+  function formatPostText(val) {
+    if (!val) return '';
+    if (typeof val === 'string') return val.trim();
+    if (Array.isArray(val)) return val.map(formatPostText).filter(Boolean).join('\n');
+    if (typeof val === 'object') {
+      if (val.post) return formatPostText(val.post);
+      const parts = [];
+      ['title', 'headline', 'intro', 'greeting'].forEach(k => {
+        if (typeof val[k] === 'string' && val[k].trim()) parts.push(val[k].trim());
+      });
+      if (val.body) {
+        if (Array.isArray(val.body)) parts.push(val.body.join('\n'));
+        else if (typeof val.body === 'object') parts.push(formatPostText(val.body));
+        else if (typeof val.body === 'string') parts.push(val.body.trim());
+      }
+      ['why_join', 'highlights', 'perks', 'requirements', 'details'].forEach(k => {
+        if (Array.isArray(val[k])) parts.push(val[k].join('\n'));
+        else if (typeof val[k] === 'string' && val[k].trim()) parts.push(val[k].trim());
+      });
+      ['how_to_apply', 'apply', 'cta', 'CTA', 'call_to_action', 'career_appeal'].forEach(k => {
+        if (typeof val[k] === 'string' && val[k].trim()) parts.push(val[k].trim());
+      });
+      if (!parts.length) {
+        Object.values(val).forEach(v => {
+          const s = formatPostText(v);
+          if (s) parts.push(s);
+        });
+      }
+      return parts.join('\n\n').trim();
+    }
+    return String(val).trim();
+  }
+
+  async function load() {
+    const bodyEl = modal.querySelector('#socialContentBody');
+    bodyEl.innerHTML = '<div style="text-align:center;padding:50px 0;"><div class="spinner" style="margin:0 auto 12px"></div><div class="muted small">AI is reading job details & drafting social posts...</div></div>';
+    try {
+      const res = await api(`/jobs/${jobId}/generate-content`, { method: 'POST', body: {} });
+      data = res.content || {};
+      renderTab();
+    } catch (err) {
+      bodyEl.innerHTML = `<div class="banner bad">Failed to generate content: ${esc(err.message || err)}</div>`;
+    }
+  }
+
+  function renderTab() {
+    if (!data) return;
+    const bodyEl = modal.querySelector('#socialContentBody');
+    const copyBtn = modal.querySelector('#copySocialBtn');
+
+    const rawVal = activeTab === 'linkedin' ? (data.linkedin || data.post) : (data.instagram || data.caption);
+    const text = formatPostText(rawVal);
+    copyBtn.textContent = activeTab === 'linkedin' ? '📋 Copy for LinkedIn' : '📸 Copy for Instagram';
+
+    bodyEl.innerHTML = `
+      <div style="font-weight:600;font-size:0.95rem;display:flex;justify-content:space-between;">
+        <span>${activeTab === 'linkedin' ? 'Professional LinkedIn Post' : 'Visual Instagram Caption'}</span>
+        <span class="muted small mono">${text.length} characters</span>
+      </div>
+      <textarea class="input mono" id="socialTextArea" style="width:100%;height:270px;font-family:inherit;font-size:0.92rem;line-height:1.55;padding:12px;background:var(--bg);resize:vertical;" readonly>${esc(text)}</textarea>
+      ${data.hashtags && data.hashtags.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;"><span class="muted small" style="margin-right:2px">Hashtags:</span>${data.hashtags.map(t => `<span class="vault-tag" style="cursor:pointer;background:var(--bg-sub);border:1px solid var(--border);" title="Click to copy tag" onclick="navigator.clipboard.writeText('${t}');toast('Copied ${t}')">${esc(t)}</span>`).join('')}</div>` : ''}
+    `;
+  }
+
+  modal.querySelectorAll('#socialPlatformSeg button').forEach(btn => {
+    btn.onclick = () => {
+      modal.querySelectorAll('#socialPlatformSeg button').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      activeTab = btn.dataset.tab;
+      renderTab();
+    };
+  });
+
+  modal.querySelector('#regenSocialBtn').onclick = () => load();
+  modal.querySelector('#copySocialBtn').onclick = () => {
+    const ta = modal.querySelector('#socialTextArea');
+    if (!ta) return;
+    navigator.clipboard.writeText(ta.value).then(() => {
+      toast(`Copied ${activeTab === 'linkedin' ? 'LinkedIn post' : 'Instagram caption'} to clipboard! 📋`);
+    });
+  };
+
+  load();
+}
+
 /* ---------- job drawer ---------- */
 async function openJob(id) {
   let j;
   try { j = await api(`/jobs/${id}`); } catch (e) { return fail(e); }
   const F = [['title', 'Job title'], ['sector', 'Sector'], ['company', 'Company'], ['location', 'Location'], ['country', 'Country'], ['exp_min', 'Experience'], ['salary', 'Salary / CTC'], ['qualification', 'Qualification'], ['other_details', 'Other details'], ['work_mode', 'Work mode'], ['apply_contact', 'Apply / contact']];
-  const show = k => k === 'exp_min' ? j.experience : j[k];
+  const cleanVal = v => (!v || v === 'null' || v === 'None' || v === 'undefined') ? '' : v;
+  const show = k => {
+    const v = k === 'exp_min' ? j.experience : j[k];
+    const c = cleanVal(v);
+    return c || '—';
+  };
   $('#layer').innerHTML = `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-modal="true" aria-label="${j.code}">
-    <div class="dh"><div><div class="row"><span class="mono muted small">${j.code}</span>${pill(j.status)}${conf(j.confidence)}</div><h2 style="margin-top:6px;font-size:1.3rem">${esc(j.title || 'Untitled')}</h2><span class="muted">${esc(j.company || 'Company unclear')}</span></div><button class="btn sm" data-close>Close</button></div>
+    <div class="dh"><div><div class="row"><span class="mono muted small">${j.code}</span>${pill(j.status)}${conf(j.confidence)}</div><h2 style="margin-top:6px;font-size:1.3rem">${esc(cleanVal(j.title) || 'Untitled')}</h2><span class="muted">${esc(cleanVal(j.company) || 'Company unclear')}</span></div><button class="btn sm" data-close>Close</button></div>
     <div class="db"><div style="display:flex;flex-direction:column;gap:10px">${j.image ? `<img class="shot-img" src="${withT(j.image)}" alt="Original screenshot" data-zoom="${withT(j.image)}">` : '<div class="empty">Screenshot removed</div>'}
       <div class="muted mono small" style="word-break:break-all">${esc(j.original_name || '')}</div>
       <details ${j.raw_text ? '' : 'hidden'}><summary>Text the AI read from the image</summary><pre class="ocr">${esc(j.raw_text || '')}</pre></details></div>
       <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
-        <div class="row"><span class="vault-tag">${esc(j.vault)}</span>${src(j.source_app)}<span class="muted small">Received ${when(j.created_at)}</span></div>
+        <div class="row" style="flex-wrap:wrap;gap:6px;align-items:center;">${(j.vaults && j.vaults.length ? j.vaults : (j.vault || '').split(',').map(x => x.trim()).filter(Boolean)).map(v => `<span class="vault-tag">${esc(v)}</span>`).join('')}${src(j.source_app)}<span class="muted small">Received ${when(j.created_at)}</span></div>
         ${j.status === 'duplicate' && j.duplicate_of ? `<div class="banner info"><b>Duplicate</b><span>Same job as <button class="btn sm ghost" data-open="${j.duplicate_of}">JV-${j.duplicate_of}</button>. It was not added twice.</span></div>` : ''}
         <form id="editForm" class="fields" style="grid-template-columns:minmax(0,1fr)">
           ${F.map(([k, n]) => `<div class="field ${j.flags.includes(k) ? 'flag' : ''}"><label>${n}</label>
-            <div class="view-v" style="font-weight:600">${esc(show(k) || '—')}</div>
-            <div class="edit-v" hidden>${k === 'exp_min' ? `<div class="exp-pair"><input class="input mono" data-f="exp_min" value="${j.exp_min ?? ''}" inputmode="decimal"><span class="muted">to</span><input class="input mono" data-f="exp_max" value="${j.exp_max ?? ''}" inputmode="decimal"></div>` : k === 'work_mode' ? `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>` : `<input class="input" data-f="${k}" value="${esc(j[k] ?? '')}">`}</div>
-            ${k !== 'country' ? `<span class="ev ${j.evidence[k === 'exp_min' ? 'exp' : k] ? '' : 'none'}">${j.evidence[k === 'exp_min' ? 'exp' : k] ? 'from image: “' + esc(j.evidence[k === 'exp_min' ? 'exp' : k]) + '”' : show(k) ? 'edited by you' : 'not in the image'}</span>` : ''}</div>`).join('')}
+            <div class="view-v" style="font-weight:600">${esc(show(k))}</div>
+            <div class="edit-v" hidden>${k === 'exp_min' ? `<div class="exp-pair"><input class="input mono" data-f="exp_min" value="${j.exp_min ?? ''}" inputmode="decimal"><span class="muted">to</span><input class="input mono" data-f="exp_max" value="${j.exp_max ?? ''}" inputmode="decimal"></div>` : k === 'work_mode' ? `<select class="input" data-f="work_mode"><option value="">Not stated</option>${['Onsite', 'Hybrid', 'Remote'].map(m => `<option ${m === j.work_mode ? 'selected' : ''}>${m}</option>`).join('')}</select>` : `<input class="input" data-f="${k}" value="${esc(cleanVal(j[k]))}">`}</div></div>`).join('')}
           <div class="field edit-v" hidden><label>Vault</label><select class="input" data-f="vault"><option value="">Sort automatically</option>${vaults().map(v => `<option ${v === j.vault ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
         </form>
       </div></div>
@@ -1152,6 +1758,7 @@ async function openJob(id) {
         ${j.status !== 'rejected' ? `<button class="btn bad" data-reject="${j.id}">Reject</button>` : ''}
         ${j.status === 'rejected' || j.status === 'duplicate' ? `<button class="btn" data-restore="${j.id}">Move to review</button>` : ''}
       </div><div class="row">
+        <button class="btn" id="socialBtn" data-social="${j.id}" style="color:var(--accent);font-weight:600" title="Generate LinkedIn & Instagram post with AI">✨ Social Post</button>
         <button class="btn" id="editBtn" data-edit="${j.id}">Edit</button>
         <button class="btn primary" id="saveBtn" data-save="${j.id}" hidden>Save changes</button>
         ${j.status === 'review' ? `<button class="btn ok" data-approve="${j.id}" data-from="drawer">Approve &amp; add to sheet</button>` : ''}
@@ -1186,7 +1793,28 @@ async function refreshCounts() {
     S.stats = s;
     $('#revCount').hidden = !s.review; $('#revCount').textContent = s.review;
     $('#procCount').hidden = !s.processing; $('#procCount').textContent = s.processing;
-    $('#sideFoot').innerHTML = `<span class="dot ${s.provider === 'mock' ? 'warn' : ''}"></span>AI reader: ${s.provider === 'mock' ? 'demo mode' : s.provider === 'gemini' ? 'Gemini' : 'OpenAI'}<br>${s.processing ? `<span class="dot warn"></span>${s.processing} processing` : '<span class="dot off"></span>Queue empty'}<br>${S.token && S.token !== 'open' ? '<button data-act="signout">Sign out</button>' : '<span style="opacity:.7">Built by Dr. Design</span>'}`;
+    const userDisplay = S.user?.username || (localStorage.getItem('jv_user') ? JSON.parse(localStorage.getItem('jv_user')).username : 'admin');
+    $('#sideFoot').innerHTML = `
+      <div style="padding:8px 10px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:var(--rad);margin-bottom:8px;">
+        <div class="row spread" style="align-items:center;">
+          <div class="row" style="align-items:center;gap:8px;">
+            <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#d9a441);color:#111;display:grid;place-items:center;font-weight:700;font-size:.75rem;">
+              ${esc((userDisplay[0] || 'A').toUpperCase())}
+            </div>
+            <div style="line-height:1.2;">
+              <div style="font-weight:600;font-size:.8rem;color:var(--ink);">${esc(userDisplay)}</div>
+              <div style="font-size:.68rem;color:var(--sub);">Administrator</div>
+            </div>
+          </div>
+          <button class="btn ghost sm" data-act="openChangePass" title="Change Password" style="padding:2px 6px;font-size:.75rem;">🔑</button>
+        </div>
+      </div>
+      <span class="dot ${s.provider === 'mock' ? 'warn' : ''}"></span>AI reader: ${s.provider === 'mock' ? 'demo mode' : s.provider === 'gemini' ? 'Gemini' : 'OpenAI'}<br>
+      ${s.processing ? `<span class="dot warn"></span>${s.processing} processing` : '<span class="dot off"></span>Queue empty'}<br>
+      <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn sm" data-act="signout" style="padding:3px 8px;font-size:.75rem;">Sign out</button>
+        <span style="opacity:.5;font-size:.7rem;">JobVault v2.4</span>
+      </div>`;
     schedulePoll(s.processing > 0);
   } catch {}
 }
@@ -1204,34 +1832,77 @@ function schedulePoll(busy) {
 }
 
 /* ---------- uploads ---------- */
-function upload(files) {
+async function upload(files) {
   files = [...files].filter(f => /^image\//.test(f.type) || f.type === 'application/pdf' || /\.(png|jpe?g|webp|heic|heif|bmp|tiff|pdf)$/i.test(f.name));
   if (!files.length) return toast('Choose PNG, JPG, WEBP, HEIC images or PDF files', true);
-  const fd = new FormData(); files.forEach(f => fd.append('files', f, f.name || 'pasted.png'));
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/screenshots');
-  if (S.token && S.token !== 'open') xhr.setRequestHeader('Authorization', `Bearer ${S.token}`);
+  const isCombine = $('#combineUpload')?.checked || false;
+
+  const fd = new FormData();
+  for (const f of files) {
+    try {
+      fd.append('files', f, f.name || 'screenshot.png');
+    } catch (err) {
+      return toast(`Cannot read "${f.name}". Please click the box to browse or drag from File Explorer.`, true);
+    }
+  }
+  if (isCombine) fd.append('combine', 'true');
+
   const prog = $('#upProg');
-  if (prog) { prog.hidden = false; $('#upTxt').textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`; }
-  xhr.upload.onprogress = e => { if (e.lengthComputable && $('#upBar')) $('#upBar').style.width = (e.loaded / e.total * 100) + '%'; };
-  xhr.onload = () => {
-    if ($('#upProg')) $('#upProg').hidden = true;
-    let body = {}; try { body = JSON.parse(xhr.responseText); } catch {}
-    if (xhr.status === 401) return showLogin();
-    if (xhr.status >= 300) return toast(body.error || 'Upload failed', true);
-    toast(`${files.length} screenshot${files.length > 1 ? 's' : ''} added · reading now`);
+  if (prog) {
+    prog.hidden = false;
+    $('#upTxt').textContent = isCombine
+      ? `Combining ${files.length} parts into 1 single job…`
+      : `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`;
+    if ($('#upBar')) $('#upBar').style.width = '40%';
+  }
+
+  try {
+    const headers = {};
+    if (S.token && S.token !== 'open') headers['Authorization'] = `Bearer ${S.token}`;
+
+    const res = await fetch('/api/screenshots' + (isCombine ? '?combine=true' : ''), {
+      method: 'POST',
+      headers,
+      body: fd
+    });
+
+    if (prog) prog.hidden = true;
+    if (res.status === 401) return showLogin();
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return toast(data.error || `Upload failed (${res.status})`, true);
+    }
+
+    toast(isCombine
+      ? `Combined ${files.length} screenshot parts into 1 single job · reading now`
+      : `${files.length} screenshot${files.length > 1 ? 's' : ''} added · reading now`);
     if (current === 'inbox') render(true); else location.hash = '#inbox';
-  };
-  xhr.onerror = () => { if ($('#upProg')) $('#upProg').hidden = true; toast('Upload failed. Check your connection.', true); };
-  xhr.send(fd);
+  } catch (err) {
+    if (prog) prog.hidden = true;
+    console.error('Upload error:', err);
+    toast(err.message?.includes('fetch') ? 'Upload failed. Please click the upload area to select files from folder.' : (err.message || 'Upload failed'), true);
+  }
 }
 
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-open],[data-close],[data-act],[data-approve],[data-reject],[data-restore],[data-retry],[data-delshot],[data-edit],[data-save],[data-zoom],#fs button,[data-rmtier],[data-cmv],[data-vault]');
+  const themeSet = e.target.closest('[data-theme-set]');
+  if (themeSet) {
+    e.preventDefault();
+    return applyTheme(themeSet.dataset.themeSet);
+  }
+  const themeToggle = e.target.closest('[data-act="toggleTheme"]');
+  if (themeToggle) {
+    e.preventDefault();
+    return toggleTheme();
+  }
+
+  const t = e.target.closest('[data-open],[data-close],[data-act],[data-approve],[data-reject],[data-restore],[data-retry],[data-delshot],[data-edit],[data-save],[data-zoom],[data-social],#fs button,[data-rmtier],[data-cmv],[data-vault],[data-theme-set]');
   if (!t) return;
   const d = t.dataset;
   try {
+    if (d.social) { e.preventDefault(); return openSocialModal(d.social); }
     if (d.zoom) { e.preventDefault(); const lb = document.createElement('div'); lb.className = 'lightbox'; lb.innerHTML = `<img src="${esc(d.zoom)}" alt="Screenshot">`; lb.onclick = () => lb.remove(); document.body.appendChild(lb); return; }
     if (d.open) { e.preventDefault(); return openJob(d.open); }
     if ('close' in d) return closeLayer();
@@ -1261,9 +1932,15 @@ document.addEventListener('click', async e => {
     if (d.rmtier) { const tiers = readTiers(); tiers.splice(+d.rmtier, 1); $('#tiers').innerHTML = tiers.map((x, i) => tierRow(x, i, tiers.length)).join(''); return; }
     if (d.cmv) { const [i, dir] = d.cmv.split(':').map(Number); syncColDraft(); const [c] = colDraft.splice(i, 1); colDraft.splice(i + dir, 0, c); $('#colList').innerHTML = colRows(); return; }
 
+    if (t.closest('[data-act="toggleTheme"]')) return toggleTheme();
+    const themeSet = t.closest('[data-theme-set]');
+    if (themeSet) return applyTheme(themeSet.dataset.themeSet);
+
     switch (d.act) {
+      case 'toggleTheme': return toggleTheme();
       case 'copy': return copyExcel();
       case 'signout': return signOut();
+      case 'openChangePass': return openChangePasswordModal();
       case 'drive': { t.disabled = true; const r = await api('/drive/sync', { method: 'POST' }); t.disabled = false; toast(r.busy ? 'A Drive check is already running' : r.added ? `${r.added} new screenshot${r.added > 1 ? 's' : ''} found` : 'No new screenshots in Drive'); render(true); return; }
       case 'addTier': { const tiers = readTiers(); const last = tiers[tiers.length - 1]; const prevBelow = Number(tiers[tiers.length - 2]?.below) || 0; tiers.splice(tiers.length - 1, 0, { name: 'New tier', below: prevBelow + 3 }); last.below = null; $('#tiers').innerHTML = tiers.map((x, i) => tierRow(x, i, tiers.length)).join(''); return; }
       case 'saveRules': {
@@ -1316,24 +1993,34 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { const lb =
 window.addEventListener('hashchange', () => { closeLayer(); render(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshCounts(); });
 
-/* ---------- boot (Direct Dashboard Access) ---------- */
+/* ---------- boot ---------- */
 async function loadSettings() { try { S.settings = await api('/settings'); } catch {} }
 async function boot() {
   try {
-    S.token = 'open';
-    if ($('#app')) $('#app').hidden = false;
-    if ($('#login')) $('#login').style.display = 'none';
+    const token = localStorage.getItem('jv_token');
+    if (!token) return showLogin();
+    S.token = token;
+    try {
+      const me = await api('/auth/me');
+      S.user = me.user || me;
+      localStorage.setItem('jv_user', JSON.stringify(S.user));
+    } catch (e) {
+      console.warn('Auth token verification notice:', e);
+      localStorage.removeItem('jv_token');
+      localStorage.removeItem('jv_user');
+      return showLogin();
+    }
+    showApp();
     if (!location.hash || location.hash === '#login') location.hash = '#dashboard';
     await loadSettings();
     if (!S.settings || !S.settings.vaults) {
       S.settings = { vaults: ['India · Fresher', 'India · Junior', 'India · Mid-level', 'India · Senior', 'Remote', 'Global'] };
     }
+    updateThemeUI(document.documentElement.getAttribute('data-theme') || 'dark');
     await render();
   } catch (e) {
     console.warn('Boot notice:', e);
-    if ($('#app')) $('#app').hidden = false;
-    if ($('#login')) $('#login').style.display = 'none';
-    render();
+    showLogin();
   }
 }
 boot();
