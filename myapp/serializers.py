@@ -161,13 +161,13 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
+    email = serializers.CharField(required=True)
 
     def validate_email(self, value):
         val = value.strip().lower()
         user = User.objects.filter(Q(email__iexact=val) | Q(username__iexact=val)).first()
         if not user:
-            raise serializers.ValidationError("No active user found with this email address or username.")
+            raise serializers.ValidationError(f"No registered account found with email or username '{val}'.")
         if not user.is_active:
             raise serializers.ValidationError("This user account is currently inactive.")
         return val
@@ -176,7 +176,7 @@ class ForgotPasswordSerializer(serializers.Serializer):
 class VerifyResetTokenSerializer(serializers.Serializer):
     uidb64 = serializers.CharField(required=False, allow_blank=True)
     token = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
     otp = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
@@ -193,7 +193,7 @@ class VerifyResetTokenSerializer(serializers.Serializer):
 class ResetPasswordSerializer(serializers.Serializer):
     uidb64 = serializers.CharField(required=False, allow_blank=True)
     token = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
     otp = serializers.CharField(required=False, allow_blank=True)
     new_password = serializers.CharField(
         required=True,

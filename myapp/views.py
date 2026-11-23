@@ -43,6 +43,7 @@ from myapp.utils import (
     get_ai_settings,
     get_columns_setting,
     get_required_fields,
+    get_vault_definitions,
     get_vault_names,
     get_vault_rules,
     process_screenshot,
@@ -52,6 +53,10 @@ from myapp.utils import (
 
 def index_view(request):
     return render(request, "dashboard.html")
+
+
+def forgot_password_view(request):
+    return render(request, "forgot_password.html")
 
 
 def get_client_ip(request):
@@ -183,6 +188,44 @@ class ScreenshotsView(APIView):
 
         if not files:
             return Response({"error": "No files provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Pre-validate PDF page limit (Maximum 100 screenshots/pages per PDF)
+        MAX_PDF_PAGES = 100
+        for f in files:
+            orig_name = f.name or "document.pdf"
+            is_pdf = orig_name.lower().endswith(".pdf") or getattr(f, "content_type", "") == "application/pdf"
+            if is_pdf:
+                f_pos = f.tell() if hasattr(f, "tell") else 0
+                try:
+                    import pypdfium2 as pdfium
+                    pdf_bytes = f.read()
+                    if hasattr(f, "seek"):
+                        f.seek(f_pos)
+                    doc = pdfium.PdfDocument(pdf_bytes)
+                    num_pages = len(doc)
+                    if num_pages > MAX_PDF_PAGES:
+                        return Response(
+                            {
+                                "error": (
+                                    f"PDF '{orig_name}' me {num_pages} screenshots/pages hain. "
+                                    f"Ek baar me ek PDF ke andar maximum {MAX_PDF_PAGES} screenshots allowed hain. "
+                                    f"Kripya ise 100-100 ke batches me divide karke upload karein."
+                                )
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    if num_pages == 0:
+                        return Response(
+                            {"error": f"PDF '{orig_name}' empty hai (0 pages)."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                except Exception as e:
+                    if hasattr(f, "seek"):
+                        f.seek(f_pos)
+                    return Response(
+                        {"error": f"PDF file '{orig_name}' unreadable ya corrupt hai: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
         combine_param = (
             request.data.get("combine")
@@ -736,6 +779,251 @@ class RulesTestView(APIView):
         return Response({"vault": vault})
 
 
+class VaultsManageView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        vault_defs = get_vault_definitions()
+        for v in vault_defs:
+            v["count"] = Job.objects.filter(status="synced", vault__contains=v["name"]).count()
+        rules = get_vault_rules()
+        return Response({
+            "success": True,
+            "homeCountry": rules.get("homeCountry", "India"),
+            "remoteVault": rules.get("remoteVault", "Remote"),
+            "globalVault": rules.get("globalVault", "Global"),
+            "vaults": vault_defs,
+        })
+
+    def post(self, request):
+        name = str(request.data.get("name", "")).strip()
+        if not name:
+            return Response({"error": "Vault name is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        rules = get_vault_rules()
+        existing_names = [v["name"].lower() for v in get_vault_definitions()]
+        if name.lower() in existing_names:
+            return Response({"error": f"A vault named '{name}' already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        min_exp = request.data.get("min_exp")
+        max_exp = request.data.get("max_exp")
+        try:
+            min_exp = float(min_exp) if min_exp not in [None, "", "null"] else 0.0
+        except (ValueError, TypeError):
+            min_exp = 0.0
+
+        try:
+            max_exp = float(max_exp) if max_exp not in [None, "", "null"] else None
+        except (ValueError, TypeError):
+            max_exp = None
+
+        description = str(request.data.get("description", "")).strip()
+        home = rules.get("homeCountry", "India")
+        if not description:
+            if max_exp is None:
+                description = f"{home} · {int(min_exp) if min_exp.is_integer() else min_exp}+ yrs"
+            else:
+                description = f"{home} · {int(min_exp) if min_exp.is_integer() else min_exp}–{int(max_exp) if max_exp.is_integer() else max_exp} yrs"
+
+        new_tier = {
+            "name": name,
+            "min_exp": min_exp,
+            "max_exp": max_exp,
+            "below": max_exp,
+            "description": description,
+        }
+
+        tiers = rules.get("tiers", [])
+        tiers.append(new_tier)
+        tiers.sort(key=lambda x: (x.get("min_exp") or 0.0, 999.0 if x.get("max_exp") is None else (x.get("max_exp") or 0.0)))
+        rules["tiers"] = tiers
+        set_setting("rules", rules)
+
+        moved = 0
+        for job in Job.objects.all():
+            new_vault = classify_job(job.__dict__, rules)
+            if new_vault != job.vault:
+                job.vault = new_vault
+                job.save(update_fields=["vault"])
+                moved += 1
+
+        ActivityLog.objects.create(
+            action="VAULT_CREATED",
+            details=f"Admin added new vault '{name}' ({description}). {moved} jobs re-classified.",
+            ip_address=get_client_ip(request),
+        )
+
+        vault_defs = get_vault_definitions()
+        for v in vault_defs:
+            v["count"] = Job.objects.filter(status="synced", vault__contains=v["name"]).count()
+
+        return Response({
+            "success": True,
+            "message": f"Vault '{name}' created successfully.",
+            "moved_jobs": moved,
+            "vaults": vault_defs,
+        }, status=status.HTTP_201_CREATED)
+
+    def put(self, request):
+        old_name = str(request.data.get("old_name", "")).strip()
+        new_name = str(request.data.get("name", "")).strip()
+        if not old_name:
+            return Response({"error": "Old vault name is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not new_name:
+            new_name = old_name
+
+        rules = get_vault_rules()
+        tiers = rules.get("tiers", [])
+        vault_descs = rules.setdefault("vaultDescriptions", {})
+
+        is_remote = old_name.lower() == str(rules.get("remoteVault", "")).lower()
+        is_global = old_name.lower() == str(rules.get("globalVault", "")).lower()
+
+        min_exp = request.data.get("min_exp")
+        max_exp = request.data.get("max_exp")
+        try:
+            min_exp = float(min_exp) if min_exp not in [None, "", "null"] else None
+        except (ValueError, TypeError):
+            min_exp = None
+
+        try:
+            max_exp = float(max_exp) if max_exp not in [None, "", "null"] else None
+        except (ValueError, TypeError):
+            max_exp = None
+
+        description = str(request.data.get("description", "")).strip()
+
+        tier_found = False
+        if is_remote:
+            rules["remoteVault"] = new_name
+            if description:
+                vault_descs[new_name] = description
+            tier_found = True
+        elif is_global:
+            rules["globalVault"] = new_name
+            if description:
+                vault_descs[new_name] = description
+            tier_found = True
+        else:
+            for t in tiers:
+                if t.get("name", "").strip().lower() == old_name.lower():
+                    t["name"] = new_name
+                    if min_exp is not None:
+                        t["min_exp"] = min_exp
+                    if max_exp is not None or "max_exp" in request.data:
+                        t["max_exp"] = max_exp
+                        t["below"] = max_exp
+                    if description:
+                        t["description"] = description
+                    tier_found = True
+                    break
+
+        if not tier_found:
+            return Response({"error": f"Vault '{old_name}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        tiers.sort(key=lambda x: (x.get("min_exp") or 0.0, 999.0 if x.get("max_exp") is None else (x.get("max_exp") or 0.0)))
+        rules["tiers"] = tiers
+        set_setting("rules", rules)
+
+        if old_name != new_name:
+            for job in Job.objects.filter(vault__contains=old_name):
+                parts = [p.strip() for p in job.vault.split(",") if p.strip()]
+                new_parts = [new_name if p == old_name else p for p in parts]
+                job.vault = ", ".join(new_parts)
+                job.save(update_fields=["vault"])
+
+        moved = 0
+        for job in Job.objects.all():
+            new_vault = classify_job(job.__dict__, rules)
+            if new_vault != job.vault:
+                job.vault = new_vault
+                job.save(update_fields=["vault"])
+                moved += 1
+
+        ActivityLog.objects.create(
+            action="VAULT_UPDATED",
+            details=f"Admin updated vault '{old_name}' -> '{new_name}'. {moved} jobs re-classified.",
+            ip_address=get_client_ip(request),
+        )
+
+        vault_defs = get_vault_definitions()
+        for v in vault_defs:
+            v["count"] = Job.objects.filter(status="synced", vault__contains=v["name"]).count()
+
+        return Response({
+            "success": True,
+            "message": f"Vault '{new_name}' updated successfully.",
+            "moved_jobs": moved,
+            "vaults": vault_defs,
+        }, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        name = str(request.data.get("name") or request.query_params.get("name", "")).strip()
+        if not name:
+            return Response({"error": "Vault name is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        rules = get_vault_rules()
+        tiers = rules.get("tiers", [])
+
+        if name.lower() == str(rules.get("remoteVault", "")).lower() or name.lower() == str(rules.get("globalVault", "")).lower():
+            return Response({"error": f"System vault '{name}' cannot be deleted, but it can be renamed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(tiers) <= 1:
+            return Response({"error": "Cannot delete the last remaining experience tier."}, status=status.HTTP_400_BAD_REQUEST)
+
+        new_tiers = [t for t in tiers if t.get("name", "").strip().lower() != name.lower()]
+        if len(new_tiers) == len(tiers):
+            return Response({"error": f"Vault '{name}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        rules["tiers"] = new_tiers
+        set_setting("rules", rules)
+
+        moved = 0
+        for job in Job.objects.all():
+            new_vault = classify_job(job.__dict__, rules)
+            if new_vault != job.vault:
+                job.vault = new_vault
+                job.save(update_fields=["vault"])
+                moved += 1
+
+        ActivityLog.objects.create(
+            action="VAULT_DELETED",
+            details=f"Admin deleted vault '{name}'. {moved} jobs re-classified.",
+            ip_address=get_client_ip(request),
+        )
+
+        vault_defs = get_vault_definitions()
+        for v in vault_defs:
+            v["count"] = Job.objects.filter(status="synced", vault__contains=v["name"]).count()
+
+        return Response({
+            "success": True,
+            "message": f"Vault '{name}' deleted successfully.",
+            "moved_jobs": moved,
+            "vaults": vault_defs,
+        }, status=status.HTTP_200_OK)
+
+
+class VaultDetailManageView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, vault_name):
+        vault_defs = get_vault_definitions()
+        for v in vault_defs:
+            if v["name"].lower() == vault_name.lower():
+                v["count"] = Job.objects.filter(status="synced", vault__contains=v["name"]).count()
+                return Response({"success": True, "vault": v})
+        return Response({"error": f"Vault '{vault_name}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    def put(self, request, vault_name):
+        request.data["old_name"] = vault_name
+        return VaultsManageView().put(request)
+
+    def delete(self, request, vault_name):
+        request.data["name"] = vault_name
+        return VaultsManageView().delete(request)
+
+
 class SettingsColumnsView(APIView):
     permission_classes = [AllowAny]
 
@@ -1215,36 +1503,62 @@ class ForgotPasswordView(APIView):
             defaults={"value": {"otp": otp, "expires_at": expires_at.isoformat()}}
         )
 
-        subject = "JobVault AI — Password Reset Verification"
-        body = (
-            f"Hello {user.username},\n\n"
-            f"You requested to reset your password for JobVault AI.\n\n"
-            f"Your 6-Digit Verification OTP: {otp}\n"
-            f"Reset Token: {token}\n"
-            f"User ID (UID): {uidb64}\n\n"
-            f"This code will expire in 15 minutes.\n"
-            f"If you did not request this, please ignore this email.\n\n"
-            f"— JobVault AI Security Team"
-        )
-        try:
-            from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@jobvault.ai")
-            send_mail(subject, body, from_email, [user.email], fail_silently=True)
-        except Exception:
-            pass
+        target_email = user.email or (email_or_user if "@" in email_or_user else None)
+        email_sent = False
+        email_err = None
+
+        if target_email:
+            subject = "JobVault AI — Password Reset Verification"
+            body = (
+                f"Hello {user.username},\n\n"
+                f"You requested to reset your password for JobVault AI.\n\n"
+                f"Your 6-Digit Verification OTP: {otp}\n"
+                f"Reset Token: {token}\n"
+                f"User ID (UID): {uidb64}\n\n"
+                f"This code will expire in 15 minutes.\n"
+                f"If you did not request this, please ignore this email.\n\n"
+                f"— JobVault AI Security Team"
+            )
+            html_body = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+                <div style="border-bottom: 2px solid #eab308; padding-bottom: 12px; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: #0f172a;">JobVault AI</h2>
+                    <span style="font-size: 12px; color: #64748b;">Recruitment Automation Security</span>
+                </div>
+                <p style="color: #334155; font-size: 15px;">Hello <b>{user.username}</b>,</p>
+                <p style="color: #475569; font-size: 14px; line-height: 1.5;">You requested to reset your password for your JobVault AI workspace.</p>
+                <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 16px; text-align: center; margin: 20px 0;">
+                    <span style="font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 6px;">Your 6-Digit Verification Code</span>
+                    <span style="font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #b45309; font-family: monospace;">{otp}</span>
+                </div>
+                <p style="color: #64748b; font-size: 12px;">This verification code will expire in <b>15 minutes</b>. If you did not request a password reset, please safely ignore this message.</p>
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0 16px;">
+                <p style="font-size: 11px; color: #94a3b8; margin: 0;">— JobVault AI Automated Security System</p>
+            </div>
+            """
+            try:
+                from_email = getattr(settings, "DEFAULT_FROM_EMAIL", settings.EMAIL_HOST_USER)
+                send_mail(subject, body, from_email, [target_email], html_message=html_body, fail_silently=False)
+                email_sent = True
+            except Exception as e:
+                email_err = str(e)
+                import logging
+                logging.getLogger(__name__).error(f"Failed to send reset email to {target_email}: {e}")
 
         ActivityLog.objects.create(
             actor=user,
             action="PASSWORD_RESET_REQUEST",
-            details=f"Password reset requested for '{user.username}' ({user.email}).",
+            details=f"Password reset requested for '{user.username}' ({target_email or user.email}). Email sent: {email_sent}.",
             ip_address=get_client_ip(request),
         )
 
         return Response(
             {
                 "success": True,
-                "message": "Password reset instructions and verification code have been generated.",
+                "email_sent": email_sent,
+                "message": f"Verification code has been sent to {target_email}." if email_sent else "Password reset instructions and verification code have been generated.",
                 "data": {
-                    "email": user.email,
+                    "email": target_email or user.email,
                     "username": user.username,
                     "uidb64": uidb64,
                     "token": token,

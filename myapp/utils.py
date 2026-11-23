@@ -23,11 +23,15 @@ DEFAULT_RULES = {
     "remoteVault": "Remote",
     "globalVault": "Global",
     "tiers": [
-        {"name": "India · Fresher", "below": 2},
-        {"name": "India · Junior", "below": 5},
-        {"name": "India · Mid-level", "below": 10},
-        {"name": "India · Senior", "below": None},
+        {"name": "India · Fresher", "below": 2, "min_exp": 0.0, "max_exp": 2.0, "description": "India · 0-2 yrs (Freshers & 1, 2 yrs)"},
+        {"name": "India · Junior", "below": 5, "min_exp": 2.0, "max_exp": 5.0, "description": "India · 2–5 yrs (2, 3, 4, 5 yrs)"},
+        {"name": "India · Mid-level", "below": 10, "min_exp": 5.0, "max_exp": 10.0, "description": "India · 5–10 yrs (5 to 10 yrs)"},
+        {"name": "India · Senior", "below": None, "min_exp": 10.0, "max_exp": None, "description": "India · 10+ yrs"},
     ],
+    "vaultDescriptions": {
+        "Remote": "Remote / work from anywhere",
+        "Global": "Outside India, not remote",
+    },
 }
 
 DEFAULT_COLUMNS = [
@@ -101,8 +105,102 @@ def get_ai_settings():
     return get_setting("ai", DEFAULT_AI)
 
 
+def enrich_vault_rules(rules):
+    if not isinstance(rules, dict):
+        rules = dict(DEFAULT_RULES)
+    
+    home = rules.get("homeCountry", "India")
+    tiers = rules.get("tiers", [])
+    standard_descs = {
+        "India · Fresher": f"{home} · 0–2 yrs (Freshers & 1, 2 yrs)",
+        "India · Junior": f"{home} · 2–5 yrs (2, 3, 4, 5 yrs)",
+        "India · Mid-level": f"{home} · 5–10 yrs (5 to 10 yrs)",
+        "India · Senior": f"{home} · 10+ yrs",
+    }
+    for i, t in enumerate(tiers):
+        t_name = str(t.get("name", "")).strip()
+        prev_below = tiers[i - 1].get("below") if i > 0 else 0
+        if t.get("min_exp") is None:
+            t["min_exp"] = float(prev_below) if prev_below is not None else 0.0
+        else:
+            try:
+                t["min_exp"] = float(t["min_exp"])
+            except (ValueError, TypeError):
+                t["min_exp"] = 0.0
+
+        if t.get("max_exp") is None and "below" in t and t["below"] is not None:
+            t["max_exp"] = float(t["below"])
+        elif t.get("max_exp") is not None:
+            try:
+                t["max_exp"] = float(t["max_exp"])
+            except (ValueError, TypeError):
+                t["max_exp"] = None
+
+        if not t.get("description"):
+            if t_name in standard_descs:
+                t["description"] = standard_descs[t_name]
+            elif t.get("max_exp") is None:
+                t["description"] = f"{home} · {int(t['min_exp']) if float(t['min_exp']).is_integer() else t['min_exp']}+ yrs"
+            else:
+                t["description"] = f"{home} · {int(t['min_exp']) if float(t['min_exp']).is_integer() else t['min_exp']}–{int(t['max_exp']) if float(t['max_exp']).is_integer() else t['max_exp']} yrs"
+
+    v_descs = rules.setdefault("vaultDescriptions", {})
+    glob = rules.get("globalVault", "Global")
+    rem = rules.get("remoteVault", "Remote")
+    if glob not in v_descs:
+        v_descs[glob] = f"Outside {home}, not remote"
+    if rem not in v_descs:
+        v_descs[rem] = "Remote / work from anywhere"
+
+    return rules
+
+
 def get_vault_rules():
-    return get_setting("rules", DEFAULT_RULES)
+    r = get_setting("rules", DEFAULT_RULES)
+    return enrich_vault_rules(r)
+
+
+def get_vault_definitions():
+    rules = get_vault_rules()
+    home = rules.get("homeCountry", "India")
+    remote_v = rules.get("remoteVault", "Remote")
+    global_v = rules.get("globalVault", "Global")
+    tiers = rules.get("tiers", [])
+    vault_descs = rules.get("vaultDescriptions", {})
+
+    vaults = []
+    for i, t in enumerate(tiers):
+        vaults.append({
+            "name": t.get("name"),
+            "type": "tier",
+            "tier_index": i,
+            "min_exp": t.get("min_exp"),
+            "max_exp": t.get("max_exp"),
+            "description": t.get("description", ""),
+            "below": t.get("max_exp"),
+        })
+
+    vaults.append({
+        "name": global_v,
+        "type": "global",
+        "tier_index": None,
+        "min_exp": None,
+        "max_exp": None,
+        "description": vault_descs.get(global_v, f"Outside {home}, not remote"),
+        "below": None,
+    })
+
+    vaults.append({
+        "name": remote_v,
+        "type": "remote",
+        "tier_index": None,
+        "min_exp": None,
+        "max_exp": None,
+        "description": vault_descs.get(remote_v, "Remote / work from anywhere"),
+        "below": None,
+    })
+
+    return vaults
 
 
 def get_columns_setting():
@@ -112,7 +210,12 @@ def get_columns_setting():
 def get_vault_names():
     rules = get_vault_rules()
     tiers = [t["name"] for t in rules.get("tiers", [])]
-    return tiers + [rules.get("globalVault", "Global"), rules.get("remoteVault", "Remote")]
+    names = tiers + [rules.get("globalVault", "Global"), rules.get("remoteVault", "Remote")]
+    out = []
+    for n in names:
+        if n and n not in out:
+            out.append(n)
+    return out
 
 
 def get_required_fields():
@@ -231,25 +334,42 @@ def get_job_vault_list(job_data, rules=None):
     if hi is None:
         hi = lo
 
-    # Dynamic tier mapping from rules or standard tiers
-    # Tier 1: 0-2 yrs (Fresher, 0, 1, 2)
-    if lo < 2.0 or (lo == 2.0 and hi <= 2.0):
-        matched.append("India · Fresher")
+    # Dynamic tier mapping from rules
+    tiers = rules.get("tiers", [])
+    tier_matched = False
+    if tiers:
+        for i, t in enumerate(tiers):
+            t_name = str(t.get("name") or "").strip()
+            if not t_name:
+                continue
 
-    # Tier 2: 2-5 yrs (2, 3, 4, 5) -> 2-yr jobs appear in BOTH 0-2 and 2-5; 1-4 yrs spans Fresher & Junior
-    if (lo >= 2.0 and lo < 5.0) or (hi > 2.0 and lo < 5.0) or (lo == 5.0 and hi <= 5.0):
-        matched.append("India · Junior")
+            t_min = t.get("min_exp")
+            t_max = t.get("max_exp")
+            if t_min is None and t_max is None:
+                prev_below = tiers[i - 1].get("below") if i > 0 else 0
+                t_min = float(prev_below) if prev_below is not None else 0.0
+                curr_below = t.get("below")
+                t_max = float(curr_below) if curr_below is not None else None
+            else:
+                t_min = float(t_min) if t_min is not None else 0.0
+                t_max = float(t_max) if t_max is not None else None
 
-    # Tier 3: 5-10 yrs (5 to 10) -> 5-yr jobs appear in BOTH Junior and Mid; 3-7 yrs spans Junior & Mid
-    if (lo >= 5.0 and lo < 10.0) or (hi > 5.0 and lo < 10.0) or (lo == 10.0 and hi <= 10.0):
-        matched.append("India · Mid-level")
+            # Open upper bound (e.g. 10+ yrs or 15+ yrs)
+            if t_max is None:
+                if hi >= t_min or lo >= t_min:
+                    matched.append(t_name)
+                    tier_matched = True
+            else:
+                # Interval match with boundary overlaps (e.g. 0-2 yrs, 2-5 yrs)
+                if (lo < t_max and hi >= t_min) or (lo <= t_min and hi >= t_max) or (lo >= t_min and lo <= t_max) or (hi >= t_min and hi <= t_max):
+                    matched.append(t_name)
+                    tier_matched = True
 
-    # Tier 4: 10+ yrs -> 10-yr jobs appear in BOTH Mid and Senior; 8-12 yrs spans Mid & Senior
-    if hi > 10.0 or lo >= 10.0:
-        matched.append("India · Senior")
-
-    if not matched:
-        matched.append("India · Fresher")
+    if not tier_matched:
+        if tiers:
+            matched.append(tiers[0]["name"])
+        else:
+            matched.append("India · Fresher")
 
     # Remove duplicates preserving order
     unique_matched = []

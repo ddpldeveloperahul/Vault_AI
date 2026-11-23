@@ -29,6 +29,8 @@ from myapp.views import (
     SettingsView,
     StatsView,
     UserProfileView,
+    VaultDetailManageView,
+    VaultsManageView,
     VerifyResetTokenView,
 )
 
@@ -81,6 +83,14 @@ urlpatterns = [
     path("jobs/<int:pk>/restore", JobRestoreView.as_view()),
     path("jobs/<int:pk>/generate-content/", JobGenerateContentView.as_view(), name="job-generate-content"),
     path("jobs/<int:pk>/generate-content", JobGenerateContentView.as_view()),
+
+    # Vaults Management
+    path("vaults/", VaultsManageView.as_view(), name="vaults-manage"),
+    path("vaults", VaultsManageView.as_view()),
+    path("vaults/<str:vault_name>/", VaultDetailManageView.as_view(), name="vault-detail-manage"),
+    path("vaults/<str:vault_name>", VaultDetailManageView.as_view()),
+    path("settings/vaults/", VaultsManageView.as_view(), name="settings-vaults"),
+    path("settings/vaults", VaultsManageView.as_view()),
 
     # Settings
     path("settings/", SettingsView.as_view(), name="settings"),
