@@ -1983,7 +1983,7 @@
     /* ---------- state ---------- */
     const DEF = {
       ai: { provider: 'mock', threshold: 80, strict: true, dedupe: true, dedupeDays: 30, extraInstructions: '' },
-      rules: { homeCountry: 'India', remoteVault: 'Remote', globalVault: 'Global', tiers: [{ name: 'India · Fresher', below: 2 }, { name: 'India · Junior', below: 5 }, { name: 'India · Mid-level', below: 10 }, { name: 'India · Senior', below: null }] },
+      rules: { homeCountry: 'India', remoteVault: 'Remote Access Vault', globalVault: 'UAE & Global Access Vault', tiers: [{ name: 'Early Career Access Vault', below: 5 }, { name: 'Management Access Vault', below: 10 }, { name: 'Leadership Access Vault', below: 15 }, { name: 'Executive Access Vault', below: null }] },
       columns: [['title', 'Job Title', 1], ['company', 'Company', 1], ['location', 'Location', 1], ['experience', 'Experience', 1], ['salary', 'Salary / CTC', 0], ['work_mode', 'Work Mode', 0], ['vault', 'Vault', 0], ['source_app', 'Source', 0], ['apply_contact', 'Apply Link / Contact', 0], ['created_at', 'Date Received', 0], ['screenshot', 'Screenshot Link', 0]].map(([key, label, r]) => ({ key, label, required: !!r, enabled: true })),
     };
     const st = { settings: structuredClone(DEF), shots: [], jobs: [], log: [], sid: 0, jid: 1040 };
@@ -2015,16 +2015,16 @@
       }
       if (hi == null) hi = lo;
 
-      // Fresher (0-2)
-      if (lo < 2 || (lo === 2 && hi <= 2)) matched.push('India · Fresher');
-      // Junior (2-5)
-      if ((lo >= 2 && lo < 5) || (hi > 2 && lo < 5) || (lo === 5 && hi <= 5)) matched.push('India · Junior');
-      // Mid-level (5-10)
-      if ((lo >= 5 && lo < 10) || (hi > 5 && lo < 10) || (lo === 10 && hi <= 10)) matched.push('India · Mid-level');
-      // Senior (10+)
-      if (hi > 10 || lo >= 10) matched.push('India · Senior');
+      // Early Career Access Vault (0-5)
+      if (lo < 5 || (lo === 5 && hi <= 5)) matched.push('Early Career Access Vault');
+      // Management Access Vault (5-10)
+      if ((lo >= 5 && lo < 10) || (hi > 5 && lo < 10) || (lo === 10 && hi <= 10)) matched.push('Management Access Vault');
+      // Leadership Access Vault (10-15)
+      if ((lo >= 10 && lo < 15) || (hi > 10 && lo < 15) || (lo === 15 && hi <= 15)) matched.push('Leadership Access Vault');
+      // Executive Access Vault (15+)
+      if (hi > 15 || lo >= 15) matched.push('Executive Access Vault');
 
-      if (!matched.length) matched.push('India · Fresher');
+      if (!matched.length) matched.push('Early Career Access Vault');
       return [...new Set(matched)].join(', ');
     }
     const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2349,8 +2349,6 @@
           if (!m[2] && method === 'DELETE') { st.jobs = st.jobs.filter(x => x !== j); return { ok: true }; }
           if (m[2] === 'approve') {
             edit(j, body || {});
-            const missing = reqFields().filter(f => j[f] == null);
-            if (missing.length) { const n = { exp_min: 'experience', apply_contact: 'apply link', work_mode: 'work mode' }; return ERR(400, `Fill in ${missing.map(x => n[x] || x).join(', ')} before approving`, { missing }); }
             j.status = 'synced'; j.flags = []; j.confidence = Math.max(j.confidence, 0.99); log('Review', `JV-${j.id} ${j.title} approved → ${j.vault}`); return shape(j);
           }
           if (m[2] === 'reject') { j.status = 'rejected'; log('Review', `JV-${j.id} ${j.title || ''} rejected`); return { ok: true }; }
@@ -2690,7 +2688,7 @@
 
             <div class="fg">
               <label for="evName" style="font-weight:600;font-size:.82rem;">Vault Name</label>
-              <input class="input" id="evName" type="text" required value="${esc(v.name)}" placeholder="e.g. India · Fresher">
+              <input class="input" id="evName" type="text" required value="${esc(v.name)}" placeholder="e.g. Early Career Access Vault">
               <span class="hint">Changing name will update this vault across all existing jobs too.</span>
             </div>
 
@@ -2705,7 +2703,7 @@
                 <input class="input mono" id="evMaxExp" type="number" step="0.5" min="0" value="${maxVal}" placeholder="Leave blank for open-ended">
               </div>
             </div>
-            <span class="hint" style="margin-top:-6px;">e.g. 0 to 2 for Fresher, 2 to 5 for Junior, 10+ (leave Max empty).</span>
+            <span class="hint" style="margin-top:-6px;">e.g. 0 to 5 for Early Career, 5 to 10 for Management, 10 to 15 for Leadership, 15+ for Executive (leave Max empty).</span>
             ` : `
             <div class="banner info" style="margin:0;padding:10px 14px;font-size:.82rem;">
               <b>${v.type === 'remote' ? 'Remote Routing' : 'Global Routing'}:</b>
@@ -2715,7 +2713,7 @@
 
             <div class="fg">
               <label for="evDesc" style="font-weight:600;font-size:.82rem;">Description / Subtitle</label>
-              <input class="input" id="evDesc" type="text" value="${esc(v.description || '')}" placeholder="e.g. India · 0-2 yrs (Freshers & 1, 2 yrs)">
+              <input class="input" id="evDesc" type="text" value="${esc(v.description || '')}" placeholder="e.g. India · 0–5 yrs (Freshers & 0 to 5 yrs)">
               <span class="hint">Shown under the vault title in the cards.</span>
             </div>
 
@@ -3877,7 +3875,7 @@
         }
         await loadSettings();
         if (!S.settings || !S.settings.vaults) {
-          S.settings = { vaults: ['India · Fresher', 'India · Junior', 'India · Mid-level', 'India · Senior', 'Remote', 'Global'] };
+          S.settings = { vaults: ['Early Career Access Vault', 'Management Access Vault', 'Leadership Access Vault', 'Executive Access Vault', 'Remote Access Vault', 'UAE & Global Access Vault'] };
         }
         updateThemeUI(document.documentElement.getAttribute('data-theme') || 'dark');
         await render();

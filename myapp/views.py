@@ -40,13 +40,16 @@ from myapp.utils import (
     classify_job,
     calculate_fingerprint,
     generate_job_id,
+    get_expected_job_id_prefix,
     get_ai_settings,
     get_columns_setting,
     get_required_fields,
     get_vault_definitions,
     get_vault_names,
     get_vault_rules,
+    normalize_work_mode,
     process_screenshot,
+    sanitize_val,
     set_setting,
 )
 
@@ -463,7 +466,10 @@ class JobDetailView(APIView):
         for f in edit_fields:
             if f in data:
                 val = data[f]
-                job.__dict__[f] = val.strip() if val is not None and str(val).strip() else None
+                clean_v = sanitize_val(val)
+                if f == "work_mode" and clean_v:
+                    clean_v = normalize_work_mode(clean_v)
+                setattr(job, f, clean_v)
 
         for exp_field in ["exp_min", "exp_max"]:
             if exp_field in data:
@@ -490,8 +496,8 @@ class JobDetailView(APIView):
         else:
             job.vault = classify_job(job.__dict__)
 
-        if not job.job_id:
-            job.job_id = generate_job_id(job.vault)
+        if not job.job_id or (job.job_id and str(job.job_id)[0] != get_expected_job_id_prefix(job.vault, job.work_mode)):
+            job.job_id = generate_job_id(job.vault, work_mode=job.work_mode)
 
         job.fingerprint = calculate_fingerprint(job.__dict__)
         job.save()
@@ -519,9 +525,11 @@ class JobApproveView(APIView):
         # Apply any fields passed in body
         data = request.data or {}
         for f in ["title", "sector", "company", "location", "country", "salary", "qualification", "other_details", "work_mode", "apply_contact"]:
-            if f in data and data[f] is not None:
-                val = str(data[f]).strip()
-                setattr(job, f, val if val else None)
+            if f in data:
+                clean_v = sanitize_val(data[f])
+                if f == "work_mode" and clean_v:
+                    clean_v = normalize_work_mode(clean_v)
+                setattr(job, f, clean_v)
 
         for exp_field in ["exp_min", "exp_max"]:
             if exp_field in data:
@@ -534,23 +542,16 @@ class JobApproveView(APIView):
                     except ValueError:
                         pass
 
-        # Check required fields
-        req_fields = get_required_fields()
-        missing = [f for f in req_fields if getattr(job, f) is None]
-        if missing:
-            names = {"exp_min": "experience", "apply_contact": "apply link", "work_mode": "work mode"}
-            missing_labels = [names.get(x, x) for x in missing]
-            return Response(
-                {"error": f"Fill in {', '.join(missing_labels)} before approving", "missing": missing},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Ensure job has a title fallback
+        if not job.title:
+            job.title = "Untitled Job"
 
         job.status = "synced"
         job.flags = []
         job.confidence = max(job.confidence, 0.99)
         job.vault = classify_job(job.__dict__)
-        if not job.job_id:
-            job.job_id = generate_job_id(job.vault)
+        if not job.job_id or (job.job_id and str(job.job_id)[0] != get_expected_job_id_prefix(job.vault, job.work_mode)):
+            job.job_id = generate_job_id(job.vault, work_mode=job.work_mode)
         job.save()
 
         ActivityLog.objects.create(action="Review", details=f"{job.code} {job.title} approved → {job.vault}")
@@ -790,8 +791,8 @@ class VaultsManageView(APIView):
         return Response({
             "success": True,
             "homeCountry": rules.get("homeCountry", "India"),
-            "remoteVault": rules.get("remoteVault", "Remote"),
-            "globalVault": rules.get("globalVault", "Global"),
+            "remoteVault": rules.get("remoteVault", "Remote Access Vault"),
+            "globalVault": rules.get("globalVault", "UAE & Global Access Vault"),
             "vaults": vault_defs,
         })
 
@@ -1139,31 +1140,91 @@ def job_matches_sheet(job, sheet_name):
     vaults = get_job_vault_list(job_dict)
     stored = str(getattr(job, "vault", "") or "")
 
-    if sheet_name == "Remote Access Vault" or sheet_name == "Remote":
-        return "Remote" in vaults or "Remote" in stored or "remote" in str(getattr(job, "work_mode", "") or "").lower()
-    if sheet_name == "UAE & Global Access Vault" or sheet_name == "Global":
+    # 1. Exact match in calculated vaults or stored vault string
+    if sheet_name in vaults or sheet_name in stored:
+        return True
+
+    # 2. Remote matching
+    if "Remote" in sheet_name:
+        work_mode_str = str(getattr(job, "work_mode", "") or "").lower()
+        loc_str = str(getattr(job, "location", "") or "").lower()
+        title_str = str(getattr(job, "title", "") or "").lower()
+        return (
+            "Remote" in vaults
+            or "Remote Access Vault" in vaults
+            or "Remote" in stored
+            or "Remote Access Vault" in stored
+            or "remote" in work_mode_str
+            or "work from home" in work_mode_str
+            or "wfh" in work_mode_str
+            or "remote" in loc_str
+            or "work from home" in loc_str
+            or "wfh" in loc_str
+            or "remote" in title_str
+            or "work from home" in title_str
+            or "wfh" in title_str
+        )
+
+    # 3. UAE & Global matching
+    if "Global" in sheet_name or "UAE" in sheet_name:
         country = str(getattr(job, "country", "") or "").strip().lower()
-        return "Global" in vaults or "Global" in stored or (country and country != "india")
-    if sheet_name == "Early Career Access Vault" or sheet_name == "India · Fresher":
-        # 0-2 yrs (Fresher, 1, 2 yrs)
-        return "India · Fresher" in vaults or "India · Fresher" in stored
-    if sheet_name == "Management Access Vault":
-        # 2-5 yrs and 5-10 yrs (so 2-yr jobs appear in BOTH Early Career AND Management!)
-        return ("India · Junior" in vaults or "India · Mid-level" in vaults or
-                "India · Junior" in stored or "India · Mid-level" in stored)
-    if sheet_name == "India · Junior":
-        return "India · Junior" in vaults or "India · Junior" in stored
-    if sheet_name == "India · Mid-level":
-        return "India · Mid-level" in vaults or "India · Mid-level" in stored
-    if sheet_name == "Leadership Access Vault" or sheet_name == "India · Senior":
-        return "India · Senior" in vaults or "India · Senior" in stored
-    if sheet_name == "Executive Access Vault":
+        if country in ("null", "none", "n/a", "-", ""):
+            country = ""
+        sal = str(getattr(job, "salary", "") or "")
+        is_inr = "₹" in sal or "inr" in sal.lower() or "lpa" in sal.lower() or "lakh" in sal.lower()
+        is_dollar = "$" in sal or "usd" in sal.lower()
+        return (
+            "Global" in vaults
+            or "UAE & Global Access Vault" in vaults
+            or "Global" in stored
+            or "UAE & Global Access Vault" in stored
+            or (bool(country and country != "india" and not is_inr))
+            or is_dollar
+        )
+
+    # 4. Early Career Access Vault (0-5 yrs)
+    if "Early Career" in sheet_name or "Fresher" in sheet_name:
+        return (
+            "Early Career Access Vault" in vaults
+            or "Early Career Access Vault" in stored
+            or "India · Fresher" in vaults
+            or "India · Fresher" in stored
+        )
+
+    # 5. Management Access Vault (5-10 yrs)
+    if "Management" in sheet_name:
+        return (
+            "Management Access Vault" in vaults
+            or "Management Access Vault" in stored
+            or "India · Junior" in vaults
+            or "India · Mid-level" in vaults
+            or "India · Junior" in stored
+            or "India · Mid-level" in stored
+        )
+
+    # 6. Leadership Access Vault (10-15 yrs)
+    if "Leadership" in sheet_name or "Leader" in sheet_name or "Senior" in sheet_name:
+        return (
+            "Leadership Access Vault" in vaults
+            or "Leadership Access Vault" in stored
+            or "India · Senior" in vaults
+            or "India · Senior" in stored
+        )
+
+    # 7. Executive Access Vault (15+ yrs)
+    if "Executive" in sheet_name:
         exp_hi = job.exp_max if job.exp_max is not None else job.exp_min
         title_lower = str(getattr(job, "title", "") or "").lower()
-        is_exec = any(k in title_lower for k in ["ceo", "cxo", "cfo", "cto", "coo", "chro", "partner", "vp", "director"])
-        return (exp_hi is not None and exp_hi >= 15) or is_exec or str(getattr(job, "job_id", "")).startswith("E-")
+        is_exec = any(k in title_lower for k in ["ceo", "cxo", "cfo", "cto", "coo", "chro", "partner", "vp", "director", "president", "founder"])
+        return (
+            "Executive Access Vault" in vaults
+            or "Executive Access Vault" in stored
+            or (exp_hi is not None and exp_hi >= 15)
+            or is_exec
+            or str(getattr(job, "job_id", "")).startswith("E-")
+        )
 
-    return sheet_name in stored or sheet_name in vaults
+    return False
 
 
 def get_job_vault_bucket(job):
@@ -1184,14 +1245,16 @@ def get_job_vault_bucket(job):
     v = str(job.vault or "").strip()
     if "Remote" in v:
         return "Remote Access Vault"
-    if "Global" in v:
+    if "Global" in v or "UAE" in v:
         return "UAE & Global Access Vault"
-    if "Fresher" in v:
-        return "Early Career Access Vault"
-    if "Senior" in v:
+    if "Executive" in v:
+        return "Executive Access Vault"
+    if "Leadership" in v or "Senior" in v or "Leader" in v:
         return "Leadership Access Vault"
-    if "Junior" in v or "Mid" in v:
+    if "Management" in v or "Junior" in v or "Mid" in v:
         return "Management Access Vault"
+    if "Early" in v or "Fresher" in v or "Career" in v:
+        return "Early Career Access Vault"
 
     return "Early Career Access Vault"
 

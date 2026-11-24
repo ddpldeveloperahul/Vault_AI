@@ -20,17 +20,17 @@ DEFAULT_AI = {
 
 DEFAULT_RULES = {
     "homeCountry": "India",
-    "remoteVault": "Remote",
-    "globalVault": "Global",
+    "remoteVault": "Remote Access Vault",
+    "globalVault": "UAE & Global Access Vault",
     "tiers": [
-        {"name": "India · Fresher", "below": 2, "min_exp": 0.0, "max_exp": 2.0, "description": "India · 0-2 yrs (Freshers & 1, 2 yrs)"},
-        {"name": "India · Junior", "below": 5, "min_exp": 2.0, "max_exp": 5.0, "description": "India · 2–5 yrs (2, 3, 4, 5 yrs)"},
-        {"name": "India · Mid-level", "below": 10, "min_exp": 5.0, "max_exp": 10.0, "description": "India · 5–10 yrs (5 to 10 yrs)"},
-        {"name": "India · Senior", "below": None, "min_exp": 10.0, "max_exp": None, "description": "India · 10+ yrs"},
+        {"name": "Early Career Access Vault", "below": 5, "min_exp": 0.0, "max_exp": 5.0, "description": "India · 0–5 yrs (Freshers & 0 to 5 yrs)"},
+        {"name": "Management Access Vault", "below": 10, "min_exp": 5.0, "max_exp": 10.0, "description": "India · 5–10 yrs (5 to 10 yrs)"},
+        {"name": "Leadership Access Vault", "below": 15, "min_exp": 10.0, "max_exp": 15.0, "description": "India · 10–15 yrs (10 to 15 yrs)"},
+        {"name": "Executive Access Vault", "below": None, "min_exp": 15.0, "max_exp": None, "description": "India · 15+ yrs"},
     ],
     "vaultDescriptions": {
-        "Remote": "Remote / work from anywhere",
-        "Global": "Outside India, not remote",
+        "Remote Access Vault": "Remote / work from anywhere",
+        "UAE & Global Access Vault": "Outside India, not remote",
     },
 }
 
@@ -59,17 +59,17 @@ Task:
 {
   "source_app": "WhatsApp" | "LinkedIn" | "Telegram" | "Instagram" | "Other",
   "raw_text": "all transcribed text...",
-  "title": "exact job title or null",
+  "title": "exact job title or null (CRITICAL: If the post is hiring for MULTIPLE roles/positions e.g. 'Backend Dev' and 'Mobile App Dev', extract and join ALL of them with a comma e.g. 'Backend Dev, Mobile App Dev')",
   "sector": "industry, business sector, or domain or null",
   "company": "company or hiring agency name or null",
-  "location": "city / state / region or null",
-  "country": "country name e.g. India, UAE, Saudi Arabia or null",
+  "location": "city / state / region or null (CRITICAL: Check headers, body text, and hashtags thoroughly. E.g. '#GurgaonJobs' -> location is 'Gurgaon', '#NoidaJobs' -> 'Noida', '#BangaloreJobs' -> 'Bangalore', '#DelhiJobs' -> 'Delhi', etc. Never output the literal string 'null' - use JSON null)",
+  "country": "country name e.g. India, UAE, Saudi Arabia, USA or null. (If salary uses ₹, INR, Lakhs, LPA, CTC, or if the city is in India, country MUST be 'India'. Never output the literal string 'null')",
   "exp_min": float number of years (freshers = 0.0) or null,
   "exp_max": float number of years or null,
   "salary": "salary or CTC as written in the post or null",
   "qualification": "education, degree, diploma or certifications required or null",
   "other_details": "brief summary of duties, responsibilities, and perks or null",
-  "work_mode": "Onsite" | "Hybrid" | "Remote" | null,
+  "work_mode": "Remote" | "Hybrid" | "Onsite" | null,
   "apply_contact": "phone number, email address, or apply url or null",
   "confidence": float between 0.50 and 0.99,
   "evidence": {
@@ -86,7 +86,9 @@ Task:
 }
 
 Rules:
-- Never guess or invent missing values. If a field is blurred, ambiguous, or not stated, set it to null.
+- Never guess or invent missing values. If a field is blurred, ambiguous, or not stated, set it to JSON null (never string 'null', 'None', or 'n/a').
+- Multiple Job Roles / Positions: If the post or graphic is hiring for 2 or more positions (e.g. multiple job banners like 'Backend Dev' and 'Mboile App Dev', or 'Hiring: Role 1, Role 2', or '(2 Positions)'), you MUST include ALL of the job titles joined by comma and space in 'title' e.g. 'Backend Dev, Mobile App Dev'. Fix obvious OCR typos in role names (e.g. 'Mboile' -> 'Mobile').
+- For 'work_mode': If text mentions 'Work From Home' or 'WFH', set work_mode to 'Remote'.
 - For each non-null field, include the exact substring found in "evidence".
 - Output ONLY valid raw JSON without any markdown formatting or code fences."""
 
@@ -112,10 +114,14 @@ def enrich_vault_rules(rules):
     home = rules.get("homeCountry", "India")
     tiers = rules.get("tiers", [])
     standard_descs = {
-        "India · Fresher": f"{home} · 0–2 yrs (Freshers & 1, 2 yrs)",
-        "India · Junior": f"{home} · 2–5 yrs (2, 3, 4, 5 yrs)",
-        "India · Mid-level": f"{home} · 5–10 yrs (5 to 10 yrs)",
-        "India · Senior": f"{home} · 10+ yrs",
+        "Early Career Access Vault": f"{home} · 0–5 yrs (Freshers & 0 to 5 yrs)",
+        "Management Access Vault": f"{home} · 5–10 yrs (5 to 10 yrs)",
+        "Leadership Access Vault": f"{home} · 10–15 yrs (10 to 15 yrs)",
+        "Executive Access Vault": f"{home} · 15+ yrs",
+        "India · Fresher": f"{home} · 0–5 yrs (Freshers & 0 to 5 yrs)",
+        "India · Junior": f"{home} · 5–10 yrs (5 to 10 yrs)",
+        "India · Mid-level": f"{home} · 10–15 yrs (10 to 15 yrs)",
+        "India · Senior": f"{home} · 15+ yrs",
     }
     for i, t in enumerate(tiers):
         t_name = str(t.get("name", "")).strip()
@@ -145,8 +151,8 @@ def enrich_vault_rules(rules):
                 t["description"] = f"{home} · {int(t['min_exp']) if float(t['min_exp']).is_integer() else t['min_exp']}–{int(t['max_exp']) if float(t['max_exp']).is_integer() else t['max_exp']} yrs"
 
     v_descs = rules.setdefault("vaultDescriptions", {})
-    glob = rules.get("globalVault", "Global")
-    rem = rules.get("remoteVault", "Remote")
+    glob = rules.get("globalVault", "UAE & Global Access Vault")
+    rem = rules.get("remoteVault", "Remote Access Vault")
     if glob not in v_descs:
         v_descs[glob] = f"Outside {home}, not remote"
     if rem not in v_descs:
@@ -163,8 +169,8 @@ def get_vault_rules():
 def get_vault_definitions():
     rules = get_vault_rules()
     home = rules.get("homeCountry", "India")
-    remote_v = rules.get("remoteVault", "Remote")
-    global_v = rules.get("globalVault", "Global")
+    remote_v = rules.get("remoteVault", "Remote Access Vault")
+    global_v = rules.get("globalVault", "UAE & Global Access Vault")
     tiers = rules.get("tiers", [])
     vault_descs = rules.get("vaultDescriptions", {})
 
@@ -210,7 +216,7 @@ def get_columns_setting():
 def get_vault_names():
     rules = get_vault_rules()
     tiers = [t["name"] for t in rules.get("tiers", [])]
-    names = tiers + [rules.get("globalVault", "Global"), rules.get("remoteVault", "Remote")]
+    names = tiers + [rules.get("globalVault", "UAE & Global Access Vault"), rules.get("remoteVault", "Remote Access Vault")]
     out = []
     for n in names:
         if n and n not in out:
@@ -279,6 +285,122 @@ def clean_parse_exp(exp_str, details=""):
     return None, None
 
 
+def sanitize_val(val):
+    """Clean string values so that 'null', 'None', 'n/a', '-', etc. become None."""
+    if val is None:
+        return None
+    s = str(val).strip()
+    if s.lower() in ("null", "none", "n/a", "not specified", "undefined", "-"):
+        return None
+    return s
+
+
+def normalize_work_mode(mode_val):
+    """Normalize work mode to standard values: 'Remote', 'Hybrid', 'Onsite'."""
+    if not mode_val:
+        return None
+    val = str(mode_val).strip()
+    v_lower = val.lower()
+    if v_lower in ("null", "none", "n/a", "-"):
+        return None
+    if any(k in v_lower for k in ("remote", "work from home", "wfh", "anywhere", "home")):
+        return "Remote"
+    if "hybrid" in v_lower:
+        return "Hybrid"
+    if any(k in v_lower for k in ("onsite", "in-office", "office", "on-site", "walk-in")):
+        return "Onsite"
+    return val
+
+
+def extract_location_from_text(raw_text, current_loc=None):
+    """Extract location/city from raw text, hashtags, or headers if not already provided."""
+    clean_loc = sanitize_val(current_loc)
+    if clean_loc:
+        return clean_loc
+    if not raw_text:
+        return None
+
+    # Check hashtags like #GurgaonJobs, #Gurgaon, #NoidaJobs, #BangaloreHiring, etc.
+    hashtag_matches = re.findall(r'#([A-Za-z0-9_]+)', str(raw_text))
+    city_map = {
+        "gurgaon": "Gurgaon", "gurugram": "Gurugram", "noida": "Noida",
+        "delhi": "Delhi", "newdelhi": "New Delhi", "bengaluru": "Bengaluru",
+        "bangalore": "Bangalore", "mumbai": "Mumbai", "hyderabad": "Hyderabad",
+        "pune": "Pune", "chennai": "Chennai", "kolkata": "Kolkata",
+        "ahmedabad": "Ahmedabad", "jaipur": "Jaipur", "indore": "Indore",
+        "chandigarh": "Chandigarh", "mohali": "Mohali", "kochi": "Kochi",
+        "cochin": "Kochi", "lucknow": "Lucknow", "bhopal": "Bhopal",
+        "surat": "Surat", "nagpur": "Nagpur", "vadodara": "Vadodara",
+        "patna": "Patna", "dehradun": "Dehradun", "kanpur": "Kanpur",
+        "ludhiana": "Ludhiana", "agra": "Agra", "nashik": "Nashik",
+        "faridabad": "Faridabad", "ghaziabad": "Ghaziabad", "coimbatore": "Coimbatore",
+        "mysore": "Mysore", "dubai": "Dubai", "abudhabi": "Abu Dhabi",
+        "sharjah": "Sharjah", "riyadh": "Riyadh", "singapore": "Singapore"
+    }
+
+    # 1. First priority: Check hashtags ending with Jobs / Hiring / Openings / Work (e.g. #GurgaonJobs)
+    for tag in hashtag_matches:
+        t_low = tag.lower()
+        for c_key, c_name in city_map.items():
+            if c_key in t_low and ("job" in t_low or "hir" in t_low or "opening" in t_low or t_low == c_key):
+                return c_name
+
+    # 2. Check explicit regex in raw_text like "Location: Gurgaon", "Based in: Gurgaon"
+    loc_match = re.search(r'(?:location|based in|job location|office location)\s*[:\-–]\s*([A-Za-z\s,]+)', str(raw_text), re.I)
+    if loc_match:
+        cand = loc_match.group(1).strip().split("\n")[0].split(".")[0].strip()
+        if cand and len(cand) < 40 and cand.lower() not in ("null", "none", "not specified"):
+            return cand
+
+    # 3. Check any hashtag matching city name directly
+    for tag in hashtag_matches:
+        t_low = tag.lower()
+        if t_low in city_map:
+            return city_map[t_low]
+
+    # 4. Check whole word matches of major cities in raw_text
+    for c_key, c_name in city_map.items():
+        if re.search(r'\b' + re.escape(c_key) + r'\b', str(raw_text), re.I):
+            return c_name
+
+    return None
+
+
+def deduce_country(country, location, salary, raw_text=""):
+    """Deduce country from explicit value, location, salary currency, or text."""
+    c = sanitize_val(country)
+    if c:
+        return c.title() if len(c) > 3 else c.upper()
+
+    sal_and_text = f"{salary or ''} {raw_text or ''}".lower()
+    indian_indicators = ("₹", "inr", "lpa", "lakh", "crore", "ctc")
+    if any(ind in sal_and_text for ind in indian_indicators):
+        return "India"
+
+    indian_cities = {
+        "gurgaon", "gurugram", "noida", "delhi", "new delhi", "bengaluru", "bangalore",
+        "mumbai", "hyderabad", "pune", "chennai", "kolkata", "ahmedabad", "jaipur",
+        "indore", "chandigarh", "mohali", "kochi", "lucknow", "bhopal", "surat",
+        "nagpur", "vadodara", "patna", "dehradun", "kanpur", "ludhiana", "agra",
+        "nashik", "faridabad", "ghaziabad", "coimbatore"
+    }
+    loc_low = str(location or "").lower()
+    if any(city in loc_low for city in indian_cities):
+        return "India"
+
+    # Foreign currency & international keywords
+    if "$" in str(salary or "") or re.search(r'\b(401k|401\(k\)|w2|1099|pto|usd)\b', sal_and_text):
+        return "USA"
+    if re.search(r'\b(aed|dirham|dubai|abu dhabi|sharjah)\b', sal_and_text):
+        return "UAE"
+    if "£" in str(salary or "") or re.search(r'\b(gbp|london|uk)\b', sal_and_text):
+        return "UK"
+    if "€" in str(salary or "") or re.search(r'\b(eur|euro)\b', sal_and_text):
+        return "Europe"
+
+    return None
+
+
 def get_job_vault_list(job_data, rules=None):
     """
     Returns the list of all vaults this job qualifies for.
@@ -297,19 +419,55 @@ def get_job_vault_list(job_data, rules=None):
 
     matched = []
 
-    work_mode = str(job_data.get("work_mode") or "").strip().lower()
+    work_mode = normalize_work_mode(job_data.get("work_mode")) or ""
+    work_mode_low = work_mode.lower()
     loc = str(job_data.get("location") or "").lower()
     title = str(job_data.get("title") or "").lower()
 
-    is_remote = work_mode == "remote" or "remote" in loc or "remote" in title or "work from home" in loc or "wfh" in loc
+    # Robust remote matching: checks work_mode, location, and title for remote / work from home / wfh
+    is_remote = (
+        "remote" in work_mode_low
+        or "work from home" in work_mode_low
+        or "wfh" in work_mode_low
+        or "remote" in loc
+        or "work from home" in loc
+        or "wfh" in loc
+        or "remote" in title
+        or "work from home" in title
+        or "wfh" in title
+    )
     if is_remote:
-        matched.append(rules.get("remoteVault", "Remote"))
+        matched.append(rules.get("remoteVault", "Remote Access Vault"))
 
-    country = str(job_data.get("country") or "").strip()
-    home_country = str(rules.get("homeCountry") or "India").strip()
-    is_global = bool(country and country.lower() != home_country.lower())
+    raw_country = sanitize_val(job_data.get("country"))
+    home_country = str(rules.get("homeCountry") or "India").strip().lower()
+
+    sal = str(job_data.get("salary") or "")
+    is_inr = "₹" in sal or "inr" in sal.lower() or "lpa" in sal.lower() or "lakh" in sal.lower()
+
+    # Detect foreign currencies (Dollar $, Euro €, GBP £, AED, SAR, etc.)
+    is_foreign_currency = bool(
+        re.search(r'[\$€£]|(?:\b(?:usd|dollars?|eur|euros?|gbp|pounds?|aed|dirhams?|sar|riyals?|cad|aud|sgd)\b)', sal, re.I)
+    )
+
+    # Infer country if missing but Indian currency or Indian location
+    country_inferred = raw_country
+    if not country_inferred and is_inr:
+        country_inferred = "India"
+    elif not country_inferred and is_foreign_currency:
+        country_inferred = "USA" if "$" in sal else "Global"
+    elif not country_inferred and loc:
+        country_inferred = deduce_country(None, loc, sal, "")
+
+    country_low = str(country_inferred or "").strip().lower()
+
+    # A job is global if genuinely outside home country OR if salary is in foreign currency (and not INR)
+    is_global = bool(
+        (country_low and country_low != home_country and not is_inr)
+        or (is_foreign_currency and not is_inr)
+    )
     if is_global:
-        matched.append(rules.get("globalVault", "Global"))
+        matched.append(rules.get("globalVault", "UAE & Global Access Vault"))
 
     # Check experience
     lo = job_data.get("exp_min")
@@ -322,12 +480,16 @@ def get_job_vault_list(job_data, rules=None):
             lo, hi = n_lo, n_hi
 
     if lo is None:
-        if any(k in title for k in ["fresher", "intern", "trainee", "entry"]):
+        if re.search(r'\b(fresher|interns?|internship|trainee|entry)\b', title, re.I):
             lo, hi = 0.0, 0.0
-        elif any(k in title for k in ["vp", "director", "head", "cxo", "chief", "partner", "president"]):
-            lo, hi = 10.0, 15.0
-        elif any(k in title for k in ["manager", "lead", "senior"]):
+        elif re.search(r'\b(vp|director|head|cxo|chief|partner|president|founder|ceo|cfo|cto|executive)\b', title, re.I):
+            lo, hi = 15.0, 15.0
+        elif re.search(r'\b(managers?|leaders?|management)\b', title, re.I):
             lo, hi = 5.0, 8.0
+        elif re.search(r'\b(seniors?|sr\.?)\b', title, re.I):
+            lo, hi = 10.0, 12.0
+        elif is_global:
+            lo, hi = None, None
         else:
             lo, hi = 0.0, 0.0
 
@@ -354,22 +516,29 @@ def get_job_vault_list(job_data, rules=None):
                 t_min = float(t_min) if t_min is not None else 0.0
                 t_max = float(t_max) if t_max is not None else None
 
-            # Open upper bound (e.g. 10+ yrs or 15+ yrs)
-            if t_max is None:
-                if hi >= t_min or lo >= t_min:
-                    matched.append(t_name)
-                    tier_matched = True
-            else:
-                # Interval match with boundary overlaps (e.g. 0-2 yrs, 2-5 yrs)
-                if (lo < t_max and hi >= t_min) or (lo <= t_min and hi >= t_max) or (lo >= t_min and lo <= t_max) or (hi >= t_min and hi <= t_max):
-                    matched.append(t_name)
-                    tier_matched = True
+            # Open upper bound (e.g. 15+ yrs)
+            if lo is not None and hi is not None:
+                if t_max is None:
+                    if hi >= t_min or lo >= t_min:
+                        matched.append(t_name)
+                        tier_matched = True
+                else:
+                    # Interval match with boundary overlaps (e.g. 0-5 yrs, 5-10 yrs)
+                    is_matched = False
+                    if lo == t_min and hi == t_min and t_min > 0:
+                        is_matched = True
+                    elif (lo < t_max and hi >= t_min) or (lo <= t_min and hi >= t_max) or (lo >= t_min and lo < t_max):
+                        is_matched = True
+                    if is_matched:
+                        matched.append(t_name)
+                        tier_matched = True
 
     if not tier_matched:
-        if tiers:
-            matched.append(tiers[0]["name"])
-        else:
-            matched.append("India · Fresher")
+        if not is_global:
+            if tiers:
+                matched.append(tiers[0]["name"])
+            else:
+                matched.append("Early Career Access Vault")
 
     # Remove duplicates preserving order
     unique_matched = []
@@ -385,27 +554,36 @@ def classify_job(job_data, rules=None):
     return ", ".join(vault_list)
 
 
-def generate_job_id(vault_name, date_obj=None):
+def get_expected_job_id_prefix(vault_name, work_mode=None):
+    v_lower = str(vault_name or "").lower()
+    wm_lower = str(work_mode or "").lower()
+
+    # Priority 1: ANY remote job MUST start with 'R'
+    if "remote" in v_lower or "remote" in wm_lower or "work from home" in wm_lower or "wfh" in wm_lower:
+        return "R"
+    # Priority 2: Global / UAE jobs outside India
+    if "global" in v_lower or "uae" in v_lower:
+        return "G"
+    # Priority 3: Executive (15+ yrs)
+    if "executive" in v_lower:
+        return "E"
+    # Priority 4: Leadership (10-15 yrs)
+    if "leadership" in v_lower or "senior" in v_lower or "leader" in v_lower:
+        return "L"
+    # Priority 5: Management (5-10 yrs)
+    if "management" in v_lower or "mid" in v_lower or "junior" in v_lower:
+        return "M"
+    # Priority 6: Early Career (0-5 yrs)
+    if "early" in v_lower or "career" in v_lower or "fresher" in v_lower:
+        return "C"
+    return "C"
+
+
+def generate_job_id(vault_name, date_obj=None, work_mode=None):
     if not date_obj:
         date_obj = timezone.now().date()
     ddmmyy = date_obj.strftime("%d%m%y")
-    v_lower = str(vault_name or "").lower()
-    first_vault = [x.strip() for x in v_lower.split(",") if x.strip()][0] if v_lower else ""
-
-    if "remote" in first_vault:
-        prefix = "R"
-    elif "global" in first_vault or "uae" in first_vault:
-        prefix = "G"
-    elif "fresher" in first_vault or "early" in first_vault:
-        prefix = "C"
-    elif "executive" in first_vault:
-        prefix = "E"
-    elif "leadership" in first_vault or "senior" in first_vault:
-        prefix = "L"
-    elif "mid" in first_vault or "junior" in first_vault or "management" in first_vault:
-        prefix = "M"
-    else:
-        prefix = "M"
+    prefix = get_expected_job_id_prefix(vault_name, work_mode)
 
     pattern = f"{prefix}-{ddmmyy}-"
     existing = Job.objects.filter(job_id__startswith=pattern).values_list("job_id", flat=True)
@@ -665,6 +843,34 @@ def process_screenshot(screenshot):
     screenshot.source_app = extracted_data.get("source_app") or "Other"
     screenshot.save(update_fields=["raw_text", "source_app", "stage", "error"])
 
+    # Sanitize and enrich extracted data
+    raw_t = extracted_data.get("raw_text") or screenshot.raw_text or ""
+    loc = extract_location_from_text(raw_t, extracted_data.get("location"))
+    mode = normalize_work_mode(extracted_data.get("work_mode"))
+    if not mode and re.search(r'\b(work\s*from\s*home|wfh|remote)\b', raw_t, re.I):
+        mode = "Remote"
+    sal = sanitize_val(extracted_data.get("salary"))
+    country = deduce_country(extracted_data.get("country"), loc, sal, raw_t)
+
+    extracted_data["location"] = loc
+    extracted_data["work_mode"] = mode
+    extracted_data["country"] = country
+    extracted_data["salary"] = sal
+    extracted_data["title"] = sanitize_val(extracted_data.get("title"))
+    extracted_data["company"] = sanitize_val(extracted_data.get("company"))
+    extracted_data["sector"] = sanitize_val(extracted_data.get("sector"))
+    extracted_data["qualification"] = sanitize_val(extracted_data.get("qualification"))
+    extracted_data["other_details"] = sanitize_val(extracted_data.get("other_details"))
+    extracted_data["apply_contact"] = sanitize_val(extracted_data.get("apply_contact"))
+
+    ev = extracted_data.get("evidence")
+    if isinstance(ev, dict):
+        for ek, ev_val in list(ev.items()):
+            if isinstance(ev_val, str) and ev_val.strip().lower() in ("null", "none", "n/a", "-"):
+                ev[ek] = ""
+        if loc and not ev.get("location"):
+            ev["location"] = loc
+
     # Verify fields
     req_fields = get_required_fields()
     missing_fields = []
@@ -704,7 +910,7 @@ def process_screenshot(screenshot):
 
     # Vault classification
     vault = classify_job(extracted_data)
-    new_job_id = generate_job_id(vault)
+    new_job_id = generate_job_id(vault, work_mode=extracted_data.get("work_mode"))
 
     job = Job.objects.create(
         screenshot=screenshot,

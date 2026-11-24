@@ -59,7 +59,7 @@ class JobVaultAPITests(APITestCase):
             company="Tech Corp",
             location="Dehradun",
             status="synced",
-            vault="India · Fresher"
+            vault="Early Career Access Vault"
         )
 
         # List all
@@ -72,7 +72,7 @@ class JobVaultAPITests(APITestCase):
         self.assertEqual(len(res_search.data["items"]), 1)
 
         # Filter by vault
-        res_vault = self.client.get("/api/jobs?vault=India · Fresher")
+        res_vault = self.client.get("/api/jobs?vault=Early Career Access Vault")
         self.assertEqual(len(res_vault.data["items"]), 1)
 
     def test_job_approve_reject_restore(self):
@@ -120,7 +120,7 @@ class JobVaultAPITests(APITestCase):
             "exp_min": 1
         }, format="json")
         self.assertEqual(res_rule.status_code, status.HTTP_200_OK)
-        self.assertEqual(res_rule.data["vault"], "India · Fresher")
+        self.assertEqual(res_rule.data["vault"], "Early Career Access Vault")
 
         # Test Remote Rule (Multi-vault: Remote + Experience tier)
         res_remote = self.client.post("/api/rules/test", {
@@ -129,8 +129,8 @@ class JobVaultAPITests(APITestCase):
             "exp_min": 3
         }, format="json")
         self.assertEqual(res_remote.status_code, status.HTTP_200_OK)
-        self.assertIn("Remote", res_remote.data["vault"])
-        self.assertIn("India · Junior", res_remote.data["vault"])
+        self.assertIn("Remote Access Vault", res_remote.data["vault"])
+        self.assertIn("Early Career Access Vault", res_remote.data["vault"])
 
     def test_export_csv_and_excel(self):
         shot = Screenshot.objects.create(filename="test.jpg", original_name="test.jpg")
@@ -140,7 +140,7 @@ class JobVaultAPITests(APITestCase):
             company="Skyline Design",
             location="Dehradun",
             status="synced",
-            vault="India · Senior"
+            vault="Leadership Access Vault"
         )
 
         # CSV export
@@ -184,7 +184,7 @@ class JobVaultAPITests(APITestCase):
             salary="12-18 LPA",
             apply_contact="careers@technova.io",
             status="synced",
-            vault="India · Junior"
+            vault="Early Career Access Vault"
         )
         res = self.client.post(f"/api/jobs/{job.id}/generate-content", {}, format="json")
         self.assertEqual(res.status_code, status.HTTP_200_OK)

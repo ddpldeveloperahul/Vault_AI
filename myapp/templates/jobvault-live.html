@@ -353,7 +353,7 @@ const DEMO = [
 /* ---------- state ---------- */
 const DEF = {
   ai: { provider: 'mock', threshold: 80, strict: true, dedupe: true, dedupeDays: 30, extraInstructions: '' },
-  rules: { homeCountry: 'India', remoteVault: 'Remote', globalVault: 'Global', tiers: [{ name: 'India · Fresher', below: 2 }, { name: 'India · Junior', below: 5 }, { name: 'India · Mid-level', below: 10 }, { name: 'India · Senior', below: null }] },
+  rules: { homeCountry: 'India', remoteVault: 'Remote Access Vault', globalVault: 'UAE & Global Access Vault', tiers: [{ name: 'Early Career Access Vault', below: 5 }, { name: 'Management Access Vault', below: 10 }, { name: 'Leadership Access Vault', below: 15 }, { name: 'Executive Access Vault', below: null }] },
   columns: [['title', 'Job Title', 1], ['company', 'Company', 1], ['location', 'Location', 1], ['experience', 'Experience', 1], ['salary', 'Salary / CTC', 0], ['work_mode', 'Work Mode', 0], ['vault', 'Vault', 0], ['source_app', 'Source', 0], ['apply_contact', 'Apply Link / Contact', 0], ['created_at', 'Date Received', 0], ['screenshot', 'Screenshot Link', 0]].map(([key, label, r]) => ({ key, label, required: !!r, enabled: true })),
 };
 const st = { settings: structuredClone(DEF), shots: [], jobs: [], log: [], sid: 0, jid: 1040 };
@@ -473,8 +473,6 @@ function route(method, path, q, body) {
       if (!m[2] && method === 'DELETE') { st.jobs = st.jobs.filter(x => x !== j); return { ok: true }; }
       if (m[2] === 'approve') {
         edit(j, body || {});
-        const missing = reqFields().filter(f => j[f] == null);
-        if (missing.length) { const n = { exp_min: 'experience', apply_contact: 'apply link', work_mode: 'work mode' }; return ERR(400, `Fill in ${missing.map(x => n[x] || x).join(', ')} before approving`, { missing }); }
         j.status = 'synced'; j.flags = []; j.confidence = Math.max(j.confidence, 0.99); log('Review', `JV-${j.id} ${j.title} approved → ${j.vault}`); return shape(j);
       }
       if (m[2] === 'reject') { j.status = 'rejected'; log('Review', `JV-${j.id} ${j.title || ''} rejected`); return { ok: true }; }
