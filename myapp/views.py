@@ -770,12 +770,20 @@ class RulesTestView(APIView):
         country = request.data.get("country")
         work_mode = request.data.get("work_mode")
         exp_min = request.data.get("exp_min")
+        location = request.data.get("location")
+        salary = request.data.get("salary")
         try:
             exp_min = float(exp_min) if exp_min not in [None, ""] else None
         except ValueError:
             exp_min = None
 
-        job_info = {"country": country, "work_mode": work_mode, "exp_min": exp_min}
+        job_info = {
+            "country": country,
+            "work_mode": work_mode,
+            "exp_min": exp_min,
+            "location": location,
+            "salary": salary,
+        }
         vault = classify_job(job_info)
         return Response({"vault": vault})
 

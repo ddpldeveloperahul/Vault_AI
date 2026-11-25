@@ -396,10 +396,27 @@ def deduce_country(country, location, salary, raw_text=""):
         return c.title() if len(c) > 3 else c.upper()
 
     sal_and_text = f"{salary or ''} {raw_text or ''}".lower()
-    indian_indicators = ("₹", "inr", "lpa", "lakh", "crore", "ctc")
-    if any(ind in sal_and_text for ind in indian_indicators):
-        return "India"
+    loc_low = str(location or "").lower()
 
+    # Priority 1: Check explicit foreign location/city keywords
+    if any(k in loc_low for k in ("dubai", "abu dhabi", "sharjah", "uae", "emirates")):
+        return "UAE"
+    if any(k in loc_low for k in ("singapore",)):
+        return "Singapore"
+    if any(k in loc_low for k in ("london", "uk", "manchester")):
+        return "UK"
+    if any(k in loc_low for k in ("usa", "new york", "san francisco", "chicago", "texas", "california", "seattle", "austin", "boston")):
+        return "USA"
+    if any(k in loc_low for k in ("riyadh", "saudi", "doha", "qatar")):
+        return "Saudi Arabia" if ("saudi" in loc_low or "riyadh" in loc_low) else "Qatar"
+    if any(k in loc_low for k in ("toronto", "vancouver", "canada")):
+        return "Canada"
+    if any(k in loc_low for k in ("sydney", "melbourne", "australia")):
+        return "Australia"
+    if any(k in loc_low for k in ("germany", "berlin", "amsterdam", "netherlands", "paris", "france")):
+        return "Europe"
+
+    # Priority 2: Check Indian cities
     indian_cities = {
         "gurgaon", "gurugram", "noida", "delhi", "new delhi", "bengaluru", "bangalore",
         "mumbai", "hyderabad", "pune", "chennai", "kolkata", "ahmedabad", "jaipur",
@@ -407,11 +424,10 @@ def deduce_country(country, location, salary, raw_text=""):
         "nagpur", "vadodara", "patna", "dehradun", "kanpur", "ludhiana", "agra",
         "nashik", "faridabad", "ghaziabad", "coimbatore"
     }
-    loc_low = str(location or "").lower()
     if any(city in loc_low for city in indian_cities):
         return "India"
 
-    # Foreign currency & international keywords
+    # Priority 3: Foreign currency & international keywords
     if "$" in str(salary or "") or re.search(r'\b(401k|401\(k\)|w2|1099|pto|usd)\b', sal_and_text):
         return "USA"
     if re.search(r'\b(aed|dirham|dubai|abu dhabi|sharjah)\b', sal_and_text):
@@ -420,6 +436,11 @@ def deduce_country(country, location, salary, raw_text=""):
         return "UK"
     if "€" in str(salary or "") or re.search(r'\b(eur|euro)\b', sal_and_text):
         return "Europe"
+
+    # Priority 4: Indian indicators
+    indian_indicators = ("₹", "inr", "lpa", "lakh", "crore", "ctc")
+    if any(ind in sal_and_text for ind in indian_indicators):
+        return "India"
 
     return None
 
@@ -473,56 +494,74 @@ def get_job_vault_list(job_data, rules=None):
         re.search(r'[\$€£]|(?:\b(?:usd|dollars?|eur|euros?|gbp|pounds?|aed|dirhams?|sar|riyals?|cad|aud|sgd)\b)', sal, re.I)
     )
 
-    # Infer country if missing but Indian currency or Indian location
+    foreign_loc_keywords = (
+        "dubai", "abu dhabi", "sharjah", "uae", "emirates", "singapore", "riyadh",
+        "doha", "qatar", "saudi", "bahrain", "kuwait", "oman", "london", "uk",
+        "usa", "us", "united states", "new york", "san francisco", "chicago",
+        "texas", "california", "seattle", "austin", "boston", "toronto", "canada",
+        "sydney", "australia", "germany", "berlin", "amsterdam"
+    )
+    is_foreign_loc = any(re.search(r'\b' + re.escape(fc) + r'\b', loc) for fc in foreign_loc_keywords)
+
     country_inferred = raw_country
-    if not country_inferred and is_inr:
-        country_inferred = "India"
-    elif not country_inferred and is_foreign_currency:
-        country_inferred = "USA" if "$" in sal else "Global"
-    elif not country_inferred and loc:
+    if not country_inferred:
         country_inferred = deduce_country(None, loc, sal, "")
 
     country_low = str(country_inferred or "").strip().lower()
 
-    # A job is global if genuinely outside home country OR if salary is in foreign currency (and not INR)
-    is_global = bool(
-        (country_low and country_low != home_country and not is_inr)
-        or (is_foreign_currency and not is_inr)
+    indian_cities = {
+        "gurgaon", "gurugram", "noida", "delhi", "new delhi", "bengaluru", "bangalore",
+        "mumbai", "hyderabad", "pune", "chennai", "kolkata", "ahmedabad", "jaipur",
+        "indore", "chandigarh", "mohali", "kochi", "lucknow", "bhopal", "surat",
+        "nagpur", "vadodara", "patna", "dehradun", "kanpur", "ludhiana", "agra",
+        "nashik", "faridabad", "ghaziabad", "coimbatore"
+    }
+    is_indian_loc = any(city in loc for city in indian_cities)
+
+    # A job is genuinely global (outside home country) if:
+    # 1. Country is outside home country (e.g. UAE, USA, etc.) and location is not an Indian city
+    # 2. Location is a known foreign location (e.g. Dubai, London, etc.)
+    # 3. Foreign currency in salary (and location is not an Indian city)
+    is_outside_india = bool(
+        (country_low and country_low != home_country and not is_indian_loc)
+        or is_foreign_loc
+        or (is_foreign_currency and not is_indian_loc)
     )
-    if is_global:
+
+    if is_outside_india:
         matched.append(rules.get("globalVault", "UAE & Global Access Vault"))
 
-    # Check experience
-    lo = job_data.get("exp_min")
-    hi = job_data.get("exp_max")
-
-    ev_exp = str(job_data.get("evidence", {}).get("exp") or job_data.get("experience") or "")
-    if lo is None or (isinstance(lo, (int, float)) and lo > 40):
-        n_lo, n_hi = clean_parse_exp(ev_exp, str(job_data.get("other_details") or ""))
-        if n_lo is not None:
-            lo, hi = n_lo, n_hi
-
-    if lo is None:
-        if re.search(r'\b(fresher|interns?|internship|trainee|entry)\b', title, re.I):
-            lo, hi = 0.0, 0.0
-        elif re.search(r'\b(vp|director|head|cxo|chief|partner|president|founder|ceo|cfo|cto|executive)\b', title, re.I):
-            lo, hi = 15.0, 15.0
-        elif re.search(r'\b(managers?|leaders?|management)\b', title, re.I):
-            lo, hi = 5.0, 8.0
-        elif re.search(r'\b(seniors?|sr\.?)\b', title, re.I):
-            lo, hi = 10.0, 12.0
-        elif is_global:
-            lo, hi = None, None
-        else:
-            lo, hi = 0.0, 0.0
-
-    if hi is None:
-        hi = lo
-
-    # Dynamic tier mapping from rules
+    # Dynamic tier mapping from rules (STRICTLY for India jobs)
+    # The 4 tiers (Early Career, Management, Leadership, Executive) are strictly India tiers: "India · 0-5 yrs", etc.
+    # Non-India (UAE / Global) jobs belong in UAE & Global Access Vault (and Remote if remote), NOT India tiers.
     tiers = rules.get("tiers", [])
     tier_matched = False
-    if tiers:
+    if tiers and not is_outside_india:
+        # Check experience
+        lo = job_data.get("exp_min")
+        hi = job_data.get("exp_max")
+
+        ev_exp = str(job_data.get("evidence", {}).get("exp") or job_data.get("experience") or "")
+        if lo is None or (isinstance(lo, (int, float)) and lo > 40):
+            n_lo, n_hi = clean_parse_exp(ev_exp, str(job_data.get("other_details") or ""))
+            if n_lo is not None:
+                lo, hi = n_lo, n_hi
+
+        if lo is None:
+            if re.search(r'\b(fresher|interns?|internship|trainee|entry)\b', title, re.I):
+                lo, hi = 0.0, 0.0
+            elif re.search(r'\b(vp|director|head|cxo|chief|partner|president|founder|ceo|cfo|cto|executive)\b', title, re.I):
+                lo, hi = 15.0, 15.0
+            elif re.search(r'\b(managers?|leaders?|management)\b', title, re.I):
+                lo, hi = 5.0, 8.0
+            elif re.search(r'\b(seniors?|sr\.?)\b', title, re.I):
+                lo, hi = 10.0, 12.0
+            else:
+                lo, hi = 0.0, 0.0
+
+        if hi is None:
+            hi = lo
+
         for i, t in enumerate(tiers):
             t_name = str(t.get("name") or "").strip()
             if not t_name:
@@ -556,12 +595,19 @@ def get_job_vault_list(job_data, rules=None):
                         matched.append(t_name)
                         tier_matched = True
 
-    if not tier_matched:
-        if not is_global:
-            if tiers:
-                matched.append(tiers[0]["name"])
-            else:
-                matched.append("Early Career Access Vault")
+    if not tier_matched and not is_outside_india and not is_remote:
+        if tiers:
+            matched.append(tiers[0]["name"])
+        else:
+            matched.append("Early Career Access Vault")
+
+    if not matched:
+        if is_outside_india:
+            matched.append(rules.get("globalVault", "UAE & Global Access Vault"))
+        elif is_remote:
+            matched.append(rules.get("remoteVault", "Remote Access Vault"))
+        else:
+            matched.append("Early Career Access Vault")
 
     # Remove duplicates preserving order
     unique_matched = []

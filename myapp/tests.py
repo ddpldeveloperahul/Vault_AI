@@ -132,6 +132,27 @@ class JobVaultAPITests(APITestCase):
         self.assertIn("Remote Access Vault", res_remote.data["vault"])
         self.assertIn("Early Career Access Vault", res_remote.data["vault"])
 
+        # Test UAE / Dubai Global Rule (Even if salary is in LPA, Dubai/UAE jobs belong strictly to Global, not India tiers)
+        res_uae = self.client.post("/api/rules/test", {
+            "country": "UAE",
+            "location": "Dubai",
+            "exp_min": 12,
+            "salary": "Up to ₹80–90 LPA, based on experience"
+        }, format="json")
+        self.assertEqual(res_uae.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_uae.data["vault"], "UAE & Global Access Vault")
+        self.assertNotIn("Leadership Access Vault", res_uae.data["vault"])
+
+        # Test Global Remote with USD salary (Multi-vault: Remote + Global)
+        res_global_remote = self.client.post("/api/rules/test", {
+            "country": "USA",
+            "work_mode": "Remote",
+            "salary": "$130,000–$160,000/year"
+        }, format="json")
+        self.assertEqual(res_global_remote.status_code, status.HTTP_200_OK)
+        self.assertIn("Remote Access Vault", res_global_remote.data["vault"])
+        self.assertIn("UAE & Global Access Vault", res_global_remote.data["vault"])
+
     def test_export_csv_and_excel(self):
         shot = Screenshot.objects.create(filename="test.jpg", original_name="test.jpg")
         Job.objects.create(
