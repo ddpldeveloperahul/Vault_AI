@@ -175,6 +175,35 @@ class JobVaultAPITests(APITestCase):
         self.assertEqual(res_xlsx.status_code, status.HTTP_200_OK)
         self.assertIn("application/vnd.openxmlformats", res_xlsx["Content-Type"])
 
+        import io
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(res_xlsx.content))
+        self.assertIn("All Jobs", wb.sheetnames)
+        self.assertIn("Leadership Access Vault", wb.sheetnames)
+
+        # 1. Add new custom vault 'saari'
+        add_res = self.client.post("/api/vaults", {
+            "name": "saari",
+            "min_exp": 1.0,
+            "max_exp": 3.0,
+            "description": "Custom saari vault"
+        }, format="json")
+        self.assertEqual(add_res.status_code, status.HTTP_201_CREATED)
+
+        # Excel export now includes 'saari' tab
+        res_xlsx_new = self.client.get("/api/export.xlsx")
+        wb_new = openpyxl.load_workbook(io.BytesIO(res_xlsx_new.content))
+        self.assertIn("saari", wb_new.sheetnames)
+
+        # 2. Delete vault 'saari'
+        del_res = self.client.delete("/api/vaults", {"name": "saari"}, format="json")
+        self.assertEqual(del_res.status_code, status.HTTP_200_OK)
+
+        # Excel export now removes 'saari' tab
+        res_xlsx_del = self.client.get("/api/export.xlsx")
+        wb_del = openpyxl.load_workbook(io.BytesIO(res_xlsx_del.content))
+        self.assertNotIn("saari", wb_del.sheetnames)
+
     def test_simple_login_and_auth(self):
         login_res = self.client.post("/api/auth/login", {
             "username": "adminuser",

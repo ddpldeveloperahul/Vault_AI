@@ -171,7 +171,6 @@ def get_vault_rules():
         or any("India ·" in str(name) for name in tier_names)
         or r.get("remoteVault") == "Remote"
         or r.get("globalVault") == "Global"
-        or "Early Career Access Vault" not in tier_names
     )
     if is_legacy:
         import copy

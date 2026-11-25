@@ -2,6 +2,7 @@ import csv
 import io
 import os
 import random
+import re
 from datetime import timedelta
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -1368,18 +1369,29 @@ class ExportExcelView(APIView):
 
         if vault_filter and vault_filter != "all":
             target_name = vault_filter
-            filtered_jobs = [j for j in qs if job_matches_sheet(j, target_name) or target_name in str(j.vault or "")]
+            filtered_jobs = [j for j in qs if job_matches_sheet(j, target_name) or target_name.lower() in str(j.vault or "").lower()]
             ws_single = wb.active
-            ws_single.title = target_name[:31]
+            clean_title = re.sub(r'[\\/*?:\[\]]', '_', str(target_name))[:31].strip() or "Vault"
+            ws_single.title = clean_title
             populate_sheet(ws_single, filtered_jobs)
         else:
             ws_all = wb.active
             ws_all.title = "All Jobs"
             populate_sheet(ws_all, qs)
 
-            for sheet_name in STANDARD_VAULT_SHEETS:
-                vault_jobs = [j for j in qs if job_matches_sheet(j, sheet_name)]
-                ws_v = wb.create_sheet(title=sheet_name)
+            active_vaults = get_vault_names() or STANDARD_VAULT_SHEETS
+            existing_sheet_titles = {"all jobs"}
+            for sheet_name in active_vaults:
+                vault_jobs = [j for j in qs if job_matches_sheet(j, sheet_name) or sheet_name.lower() in str(j.vault or "").lower()]
+                clean_title = re.sub(r'[\\/*?:\[\]]', '_', str(sheet_name))[:31].strip() or "Vault"
+                base_title = clean_title
+                counter = 1
+                while clean_title.lower() in existing_sheet_titles:
+                    clean_title = f"{base_title[:28]}_{counter}"
+                    counter += 1
+                existing_sheet_titles.add(clean_title.lower())
+
+                ws_v = wb.create_sheet(title=clean_title)
                 populate_sheet(ws_v, vault_jobs)
 
         out = io.BytesIO()
