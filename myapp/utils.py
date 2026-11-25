@@ -163,6 +163,29 @@ def enrich_vault_rules(rules):
 
 def get_vault_rules():
     r = get_setting("rules", DEFAULT_RULES)
+    # Self-healing auto-upgrade if database holds legacy vault names or structure
+    tiers = r.get("tiers", []) if isinstance(r, dict) else []
+    tier_names = [t.get("name") for t in tiers if isinstance(t, dict)]
+    is_legacy = (
+        not tiers
+        or any("India ·" in str(name) for name in tier_names)
+        or r.get("remoteVault") == "Remote"
+        or r.get("globalVault") == "Global"
+        or "Early Career Access Vault" not in tier_names
+    )
+    if is_legacy:
+        import copy
+        r = copy.deepcopy(DEFAULT_RULES)
+        set_setting("rules", r)
+        try:
+            for job in Job.objects.all():
+                job.vault = classify_job(job.__dict__, r)
+                expected_prefix = get_expected_job_id_prefix(job.vault, job.work_mode)
+                if not job.job_id or (job.job_id and job.job_id[0] != expected_prefix):
+                    job.job_id = generate_job_id(job.vault, work_mode=job.work_mode)
+                job.save(update_fields=["vault", "job_id"])
+        except Exception:
+            pass
     return enrich_vault_rules(r)
 
 

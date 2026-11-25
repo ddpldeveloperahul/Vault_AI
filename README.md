@@ -16,7 +16,8 @@
 ## Table of Contents
 - [Key Features](#key-features)
 - [System Architecture](#system-architecture)
-- [Job ID Standard Format & Vault Rules](#job-id-standard-format--vault-rules)
+- [Standard Access Vaults & Experience Tiers](#standard-access-vaults--experience-tiers)
+- [Job ID Standard Format & Prefix Priority](#job-id-standard-format--prefix-priority)
 - [Cross-Vault Dual-Routing Architecture](#cross-vault-dual-routing-architecture)
 - [Dynamic Vaults Management (Admin Customization)](#dynamic-vaults-management-admin-customization)
 - [PDF Page Limit & Ingestion Guardrails](#pdf-page-limit--ingestion-guardrails)
@@ -26,13 +27,14 @@
 - [Installation & Local Setup](#installation--local-setup)
 - [Environment Configuration (.env)](#environment-configuration-env)
 - [Production Deployment Guide](#production-deployment-guide)
-- [API Reference](#api-reference)
-  - [1. Screenshots APIs](#1-screenshots-apis)
-  - [2. Jobs APIs](#2-jobs-apis)
-  - [3. Vaults Management APIs](#3-vaults-management-apis)
-  - [4. Export APIs](#4-export-apis)
-  - [5. Authentication & Security Suite](#5-authentication--security-suite)
-  - [6. System & Integration APIs](#6-system--integration-apis)
+- [API Reference (Comprehensive)](#api-reference-comprehensive)
+  - [1. Authentication & Security Suite](#1-authentication--security-suite)
+  - [2. Screenshots Ingestion APIs](#2-screenshots-ingestion-apis)
+  - [3. Jobs Management APIs](#3-jobs-management-apis)
+  - [4. Access Vaults Management APIs](#4-access-vaults-management-apis)
+  - [5. Settings & Rules APIs](#5-settings--rules-apis)
+  - [6. Export APIs (Excel & CSV)](#6-export-apis-excel--csv)
+  - [7. System Health, Stats & Monitoring APIs](#7-system-health-stats--monitoring-apis)
 - [Verification & Testing](#verification--testing)
 - [License & Authors](#license--authors)
 
@@ -56,40 +58,37 @@
    - Checkbox-enabled batch upload that allows combining 1–4 screenshot parts of a single elongated/scrolled job posting into one consolidated job listing.
    - Stitches multi-part OCR transcriptions, aggregates field information, and generates a single clean database entry.
 
-4. **Dynamic Vaults Management (Admin CRUD)**:
-   - Full in-app management of access vaults directly from the Web Dashboard.
-   - Admins can add new custom vaults, edit existing vault titles, modify minimum/maximum experience requirements, update descriptions, and toggle active status.
-   - Instant visual update with dedicated `✏️ Edit` button on each vault card and `+ Add Vault` header button.
+4. **Multi-Role Job Extraction**:
+   - When a job graphic hires for multiple positions (e.g. `Backend Dev` and `Mobile App Dev`), the Vision AI extracts all titles joined by comma e.g. `Backend Dev, Mobile App Dev`.
 
-5. **High-Detail OpenAI Vision & Gemini OCR**:
+5. **Dynamic Access Vaults Architecture (0-5, 5-10, 10-15, 15+, Remote, Global)**:
+   - Exact client-standard vault naming synchronized between Web UI, Database Rules, and Excel sheets.
+   - Dedicated `✏️ Edit` button on each vault card and `+ Add Vault` header button.
+
+6. **High-Detail OpenAI Vision & Gemini OCR**:
    - Transcribes all readable characters from screenshots word-for-word into `raw_text` using `detail: high` mode.
    - Extracts structured fields: Role, Sector, Company, Location, Country, Experience, Salary, Qualification, Other Details, and How to Apply.
    - Preserves exact character evidence strings linking extracted data back to the image.
 
-6. **Automated 5-Stage Processing Pipeline**:
-   - `received` ➔ `reading` ➔ `verifying` ➔ `sorting` ➔ `saved`.
-   - Real-time progress indicators for every processed screenshot.
-
 7. **Cross-Vault Dual-Routing Engine**:
    - Intelligent multi-vault classification where jobs are automatically assigned to multiple relevant vaults simultaneously.
-   - E.g., a Remote listing with 1-2 years experience is routed to both **`Remote`** AND **`India · Fresher`** vaults, ensuring complete visibility across both work-mode and experience-based recruiter pipelines.
+   - E.g., a Remote listing with 1-2 years experience is routed to both **`Remote Access Vault`** AND **`Early Career Access Vault`**, ensuring complete visibility across both work-mode and experience-based recruiter pipelines.
 
-8. **Intelligent Deduplication**:
+8. **Top Priority for Remote Job IDs (`R-`)**:
+   - Any job with `work_mode == "Remote"`, WFH, or belonging to `Remote Access Vault` is guaranteed a Job ID prefix of **`R-`** (e.g. `R-241126-01`), regardless of other secondary experience tiers.
+
+9. **Intelligent Deduplication**:
    - SHA-style text normalization and fingerprint hashing (`Title|Company|Contact`).
    - Configurable deduplication lookback window (default: 30 days).
    - Duplicate jobs are automatically flagged and linked to the existing record without polluting the master sheet.
 
-9. **Review Queue & Interactive Drawer**:
-   - Side-by-side modal view comparing the original screenshot with the extracted OCR text.
-   - Real-time inline field editing.
-   - Single-click **Approve & add to sheet** or **Reject** actions.
-
-10. **Client-Standard Job ID Generation**:
-    - Automatically prefixes IDs based on vault type (`C-`, `M-`, `L-`, `E-`, `R-`, `G-`).
-    - Date-stamped with daily sequence numbers (e.g. `E-141026-49`, `C-141126-01`, `R-191126-01`).
+10. **Review Queue & Interactive Drawer with Unblocked Approval**:
+    - Side-by-side modal view comparing the original screenshot with the extracted OCR text.
+    - Real-time inline field editing with support for approving jobs with empty/null fields or custom edits.
+    - Single-click **Approve & add to sheet**, **Reject**, or **Restore** actions.
 
 11. **Standardized 12-Column Excel & CSV Export**:
-    - Generates Excel workbook with **All Jobs** master tab plus **dedicated Access Vault tabs**.
+    - Generates Excel workbook with **All Jobs** master tab plus **6 dedicated Access Vault tabs**.
     - Identical 12 columns across every sheet with Navy Dark Header (`#15202C`), auto-width columns, and auto-filters.
     - In-app **Copy for Excel** feature copies the exact 12 columns formatted with tab delimiters for direct clipboard pasting.
 
@@ -97,16 +96,14 @@
     - Automatically generates high-converting, platform-optimized social media posts from screenshot OCR and job attributes.
     - **LinkedIn**: Professional format with engaging hook, company overview, role bullets, application link, and industry hashtags.
     - **Instagram**: Catchy caption with clean layout, emojis, quick-read summary, CTA, and 8-12 trending career hashtags.
-    - 1-click copy buttons directly from the Job Drawer modal.
 
-13. **Modern SPA UI & Clean URL Routing**:
-    - Clean routing using HTML5 History API (`history.pushState` / `history.replaceState`) without hash fragments (`/dashboard/`).
-    - Full-width responsive layout for high-resolution displays.
-    - Dual Theme (Light Mode & Dark Mode) with instant 1-click toggle (`☀️` / `🌙`) and `localStorage` persistence.
+13. **Strict Credential-Based Authentication**:
+    - JWT Access and Refresh tokens with hashed password verification.
+    - Full Forgot Password, OTP email delivery, and reset confirmation flow.
 
 14. **Production Deployment Ready**:
     - Cross-platform dependency specification in `requirements.txt` (`gunicorn` on Linux; Windows OCR dependencies isolated).
-    - `WhiteNoise` static file handling integrated into Django middleware.
+    - `WhiteNoise` static file handling integrated safely into Django middleware.
     - Flexible database adapter supporting `DATABASE_URL` (cloud providers), PostgreSQL, and SQLite fallback.
     - `Procfile` included for container and cloud deployments.
 
@@ -136,7 +133,7 @@ flowchart TD
     M -- "Validated" --> P["Direct to In Sheet"]
     O --> Q["Admin Review Drawer: Edit & Approve"]
     Q --> P
-    P --> R["Auto-Generate Standard Job ID"]
+    P --> R["Auto-Generate Standard Job ID (R-, C-, M-, L-, E-, G-)"]
     R --> S["Cross-Vault Dual-Routing Engine"]
     S --> T["Database (PostgreSQL / SQLite)"]
     T --> U["Download 12-Column Multi-Tab Excel (.xlsx)"]
@@ -145,60 +142,56 @@ flowchart TD
 
 ---
 
-## Job ID Standard Format & Vault Rules
+## Standard Access Vaults & Experience Tiers
 
-Every job in the system is assigned a standardized Job ID matching the client specification:
+The system uses standard access vaults synchronized across the UI cards, database rules, and Excel export tabs:
+
+| Vault Name | Experience Criteria | Purpose / Subtitle | Job ID Prefix |
+| :--- | :--- | :--- | :---: |
+| **`Early Career Access Vault`** | **0–5 Years** (`0.0 to 5.0 yrs`) | Freshers & Early Career roles | **`C-`** (Career) |
+| **`Management Access Vault`** | **5–10 Years** (`5.0 to 10.0 yrs`) | Mid-level, Team Leads & Managers | **`M-`** (Management) |
+| **`Leadership Access Vault`** | **10–15 Years** (`10.0 to 15.0 yrs`) | Senior Managers & Department Leads | **`L-`** (Leadership) |
+| **`Executive Access Vault`** | **15+ Years** (`15.0+ yrs`) | C-Suite, VP, Director, CXO & Executives | **`E-`** (Executive) |
+| **`Remote Access Vault`** | **Remote / WFH** | Work from anywhere / Home | **`R-`** (Remote) |
+| **`UAE & Global Access Vault`** | **Outside India / International** | Outside India (non-remote or foreign currency) | **`G-`** (Global) |
+
+---
+
+## Job ID Standard Format & Prefix Priority
+
+Every job in the system is assigned a standardized, date-stamped Job ID:
 
 $$\text{Format: } \mathbf{[Prefix]\text{-}[DDMMYY]\text{-}[NN]}$$
 
-| Prefix | Access Vault Category | Target Audience & Experience Tier | Example Job ID |
-| :---: | :--- | :--- | :--- |
-| **`C-`** | **Early Career Access Vault** | Freshers, Interns, 0–2 years exp | `C-241126-01` |
-| **`M-`** | **Management Access Vault** | Junior & Mid-level Managers (2–10 yrs) | `M-241126-02` |
-| **`L-`** | **Leadership Access Vault** | Senior Leaders, Heads, Team Leads (10+ yrs) | `L-241126-01` |
-| **`E-`** | **Executive Access Vault** | C-Suite, VP, Director, CXO (15+ yrs) | `E-241126-49` |
-| **`R-`** | **Remote Access Vault** | Remote, Work-From-Home, Anywhere | `R-241126-01` |
-| **`G-`** | **UAE & Global Access Vault** | Outside India, Gulf, International | `G-241126-01` |
+### Prefix Assignment Priority Rules:
+1. **Remote Jobs (`R-`) [Top Priority]**:
+   Any job where `work_mode == "Remote"`, text contains "Work from home" / "WFH", or `Remote Access Vault` is present **ALWAYS** starts with `R-` (e.g. `R-241126-01`, `R-241126-02`).
+2. **Global / International (`G-`)**:
+   Jobs located outside India with foreign currency (non-remote) start with `G-` (e.g. `G-241126-01`).
+3. **Executive (`E-`)**:
+   Jobs requiring 15+ years of experience or C-Suite roles (VP, Director, CXO, CEO) start with `E-` (e.g. `E-241126-01`).
+4. **Leadership (`L-`)**:
+   Jobs requiring 10–15 years of experience start with `L-` (e.g. `L-241126-01`).
+5. **Management (`M-`)**:
+   Jobs requiring 5–10 years of experience start with `M-` (e.g. `M-241126-01`).
+6. **Early Career (`C-`)**:
+   Jobs requiring 0–5 years of experience (Freshers, Junior) start with `C-` (e.g. `C-241126-01`).
 
 ---
 
 ## Cross-Vault Dual-Routing Architecture
 
-In recruitment workflows, candidates search both by **work style** (e.g. Remote) and by **seniority level** (e.g. 0-2 yrs Fresher, 2-5 yrs Junior). JobVault AI implements an automated **Dual-Routing Matrix**:
+In recruitment workflows, candidates search both by **work style** (e.g. Remote) and by **seniority level** (e.g. 0-5 yrs Early Career, 5-10 yrs Management). JobVault AI implements an automated **Dual-Routing Matrix**:
 
 ```
-                         ┌──► Vault 1: "Remote" (Work Mode Filter)
+                         ┌──► Vault 1: "Remote Access Vault" (Work Mode Filter)
 [Remote Job Extracted] ──┤
-                         └──► Vault 2: "India · Fresher" or "India · Junior" (Experience Filter)
+                         └──► Vault 2: "Early Career Access Vault" (Experience Filter)
 ```
 
-- When a job is marked as `Remote`, it is routed to the `Remote` vault **AND** placed into the matching experience tier (`India · Fresher`, `India · Junior`, etc.).
-- Both vault tags appear in the Job Sheet table and are appropriately mirrored across the corresponding tabs in the downloaded Excel workbook.
-
----
-
-## Dynamic Vaults Management (Admin Customization)
-
-Admins have full control over the vault hierarchy directly from the UI or via REST endpoints:
-
-- **Add Custom Vault**: Create new specialized categories (e.g. `Healthcare Tech`, `Data & AI`, `Internships`).
-- **Edit Existing Vault**: Modify the vault name, description, experience bounds (min/max years), and display priority.
-- **Delete Vault**: Remove vaults that are no longer needed.
-- **REST APIs**: Full CRUD support via `/api/vaults/` and `/api/vaults/<vault_name>/`.
-
----
-
-## PDF Page Limit & Ingestion Guardrails
-
-To maintain high availability and prevent processing delays:
-- **Maximum Limit**: **100 pages per PDF**.
-- **Enforcement**: Validated before rasterization and OCR processing.
-- **User Feedback**: Immediate HTTP 400 error with descriptive messaging:
-  ```json
-  {
-    "error": "PDF contains 125 pages, which exceeds the maximum limit of 100 pages. Please upload a PDF with 1-100 pages."
-  }
-  ```
+- When a job is marked as `Remote`, it is routed to `Remote Access Vault` **AND** placed into the matching experience tier (`Early Career Access Vault`, `Management Access Vault`, etc.).
+- When a job offers compensation in US Dollars (`$`) or foreign currency and is Remote, it automatically routes to **`Remote Access Vault`** AND **`UAE & Global Access Vault`**.
+- All vault tags appear in the Job Sheet table and are mirrored across corresponding tabs in the downloaded Excel workbook.
 
 ---
 
@@ -209,27 +202,26 @@ When downloading the Excel workbook (`/api/export.xlsx`), **all sheets** strictl
 | Col # | Column Name | Source Field | Description | Alignment |
 | :---: | :--- | :--- | :--- | :---: |
 | **A** | **`S. No.`** | Sequence Counter | 1, 2, 3... per sheet | Center |
-| **B** | **`Job ID`** | `job.job_id` | e.g. `R-241126-01` | Center |
+| **B** | **`Job ID`** | `job.job_id` | e.g. `R-241126-01`, `C-241126-01` | Center |
 | **C** | **`Date`** | Extracted / `created_at` | e.g. `24-11-2026` | Center |
 | **D** | **`Role`** | `job.title` | Designation / Job Title | Left |
 | **E** | **`Sector`** | `job.sector` | Industry / Domain | Left |
 | **F** | **`Company`** | `job.company` | Company or Agency Name | Left |
 | **G** | **`Salary`** | `job.salary` | Salary / Package / CTC | Left |
-| **H** | **`Location`** | `job.location` | City / State / Onsite Location | Left |
+| **H** | **`Location`** | `job.location` | City / State / Location | Left |
 | **I** | **`Experience`** | `job.experience` | Years of Experience required | Left |
 | **J** | **`Qualification`**| `job.qualification` | Required Degree / Diploma | Left |
 | **K** | **`Other Details`** | `job.other_details` | Job duties & requirements | Left |
 | **L** | **`How to apply`** | `job.apply_contact` | Email, Phone, or URL | Left |
 
 ### Workbook Tab Structure:
-1. `All Jobs` (Master overview of all jobs)
-2. `India · Fresher` / `Early Career Access Vault`
-3. `India · Junior`
-4. `India · Mid-level` / `Management Access Vault`
-5. `India · Senior` / `Leadership & Executive Access Vault`
-6. `Remote` / `Remote Access Vault`
-7. `Global` / `UAE & Global Access Vault`
-8. *(Dynamic custom vault tabs automatically generated)*
+1. **`All Jobs`** (Master overview of all jobs)
+2. **`Early Career Access Vault`** (0–5 yrs)
+3. **`Executive Access Vault`** (15+ yrs)
+4. **`Leadership Access Vault`** (10–15 yrs)
+5. **`Management Access Vault`** (5–10 yrs)
+6. **`Remote Access Vault`** (Remote / WFH)
+7. **`UAE & Global Access Vault`** (International / UAE)
 
 ---
 
@@ -239,7 +231,7 @@ When downloading the Excel workbook (`/api/export.xlsx`), **all sheets** strictl
 - **WSGI Production Server**: Gunicorn 21.2+ (Linux/Cloud)
 - **Static Asset Serving**: WhiteNoise 6.12+ (compressed, auto-manifest)
 - **Database Engine**: PostgreSQL 14+ (production) / SQLite3 (development)
-- **Authentication**: JWT (`rest_framework_simplejwt`) + Session/AllowAny for internal dashboard
+- **Authentication**: JWT (`rest_framework_simplejwt`) with strict password hashing
 - **PDF & Rendering Engine**: `pypdfium2` (native ~144 DPI C-bindings rendering), `pypdf`
 - **AI OCR & Vision Extraction**:
   - **OpenAI Vision API**: `gpt-4o-mini` / `gpt-4o` with `detail: high`
@@ -247,39 +239,6 @@ When downloading the Excel workbook (`/api/export.xlsx`), **all sheets** strictl
 - **Image Processing**: Pillow (PIL) 12.3+
 - **Excel & Spreadsheet Engine**: `openpyxl` 3.1+ (Navy Dark styling `#15202C`, auto-filters, text wrapping)
 - **Frontend SPA**: Vanilla JavaScript, HTML5 History API, CSS Custom Properties (Dual Light & Dark Theme)
-
----
-
-## Directory Structure
-
-```text
-vault_ai_project/
-├── requirements.txt                 # Root production dependency definitions
-├── README.md                        # Project documentation
-└── vault_ai/
-    ├── manage.py                    # Django management utility
-    ├── .env                         # Production environment secrets & config
-    ├── Procfile                     # Cloud WSGI process declaration (Gunicorn)
-    ├── requirements.txt             # Deployment requirements with platform markers
-    ├── staticfiles/                 # Static assets directory (WhiteNoise / collectstatic)
-    ├── media/                       # Uploaded screenshots and rendered PDF pages
-    │   └── screenshots/
-    ├── vault_ai/                    # Django project core
-    │   ├── __init__.py
-    │   ├── settings.py              # Environment-aware settings, WhiteNoise, DB router
-    │   ├── urls.py                  # Project root URL routing
-    │   └── wsgi.py                  # WSGI entrypoint for Gunicorn
-    └── myapp/                       # Primary application module
-        ├── migrations/              # Database schema migrations
-        ├── models.py                # Screenshot, Job, AppSetting, ActivityLog, CustomUser
-        ├── views.py                 # REST APIs, Vault CRUD, Exporters, Auth views
-        ├── serializers.py           # Model & validation serializers
-        ├── utils.py                 # AI Vision OCR, Deduplication, Job ID generator
-        ├── urls.py                  # API endpoints definition
-        ├── tests.py                 # Unit & integration test suite (11 test cases)
-        └── templates/
-            └── dashboard.html       # Single-Page Web Dashboard (SPA)
-```
 
 ---
 
@@ -299,7 +258,7 @@ cd "C:\Users\Dell Pc\Desktop\vault_ai_project\vault_ai"
 # Create a virtual environment
 python -m venv venv
 
-# Activate the virtual environment
+# Activate virtual environment
 # Windows PowerShell:
 .\venv\Scripts\Activate.ps1
 # Linux / macOS:
@@ -353,188 +312,89 @@ Access the application in your browser:
 
 ---
 
-## Environment Configuration (.env)
+## API Reference (Comprehensive)
 
-| Variable | Default | Purpose |
-| :--- | :--- | :--- |
-| `DEBUG` | `True` | Set to `False` in production |
-| `SECRET_KEY` | *(Django Secret)* | Cryptographic security signing |
-| `ALLOWED_HOSTS` | `*` | Comma-separated domain names / IPs |
-| `CSRF_TRUSTED_ORIGINS` | *(Empty)* | Comma-separated full HTTPS URLs for CORS/CSRF |
-| `DATABASE_URL` | *(None)* | Cloud PostgreSQL connection string (Render, Railway, Heroku) |
-| `USE_POSTGRES` | `False` | `True` to enable dedicated PostgreSQL connection |
-| `DB_NAME` | `Vault_AI` | PostgreSQL database name |
-| `DB_USER` | `postgres` | Database username |
-| `DB_PASSWORD` | `rahul` | Database password |
-| `DB_HOST` | `localhost` | Database host |
-| `DB_PORT` | `5432` | Database port |
-| `OPENAI_API_KEY` | *(Optional)* | Enables OpenAI GPT-4o Vision OCR character reading |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Specifies OpenAI model (`gpt-4o-mini` or `gpt-4o`) |
-| `GEMINI_API_KEY` | *(Optional)* | Enables Google Gemini Vision OCR |
-| `EMAIL_HOST` | `smtp.gmail.com` | SMTP Server for password reset OTP |
-| `EMAIL_HOST_USER` | *(Email)* | Sender email address |
-| `EMAIL_HOST_PASSWORD` | *(App Password)* | Sender SMTP App Password |
+All API endpoints are prefixed with `/api/`. Requests and responses use standard `application/json` unless specified otherwise. Protected endpoints require `Authorization: Bearer <access_token>`.
 
----
+### 1. Authentication & Security Suite
 
-## Production Deployment Guide
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `POST` | `/api/auth/login/` *(alias: `/api/login/`)* | No | Verifies credentials (username/email and password). Returns JWT `access` and `refresh` tokens and user profile. |
+| `POST` | `/api/auth/signup/` *(alias: `/api/auth/register/`)* | No | Registers a new admin user. |
+| `POST` | `/api/auth/token/refresh/` | No | Generates a new JWT access token using a valid `refresh` token. |
+| `GET` | `/api/auth/me/` | **Yes** | Retrieves profile information for the authenticated user. |
+| `PUT` | `/api/auth/me/` | **Yes** | Updates profile information (first name, last name, email) for the authenticated user. |
+| `POST` | `/api/auth/change-password/` | **Yes** | Updates user password (requires `old_password`, `new_password`, `confirm_new_password`). |
+| `POST` | `/api/auth/forgot-password/` | No | Initiates password reset for a given `email`. Generates `uidb64`, reset token, and a 6-digit OTP valid for 15 minutes. |
+| `POST` | `/api/auth/verify-reset-token/` | No | Validates reset token (`uidb64` + `token`) or email + `otp` before allowing password reset. |
+| `POST` | `/api/auth/reset-password/` | No | Resets password using validated `uidb64` + `token` (or email + `otp`) along with `new_password` and `confirm_new_password`. |
+| `POST` | `/api/auth/logout/` *(alias: `/api/logout/`)* | No | Logs out user and blacklists the provided `refresh` token. |
 
-### Deploying to Linux VPS / Ubuntu / Debian
+#### Sample Login Request & Response:
+```http
+POST /api/auth/login/
+Content-Type: application/json
 
-1. **System Packages**:
-   ```bash
-   sudo apt update && sudo apt install -y python3-pip python3-venv git postgresql nginx
-   ```
-
-2. **Clone & Install**:
-   ```bash
-   git clone <repo-url> /var/www/vault_ai
-   cd /var/www/vault_ai/vault_ai
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
-   *(Note: Platform markers automatically skip `winocr` and Windows runtime packages on Linux).*
-
-3. **Configure Environment**:
-   ```bash
-   cp .env.example .env
-   nano .env
-   # Set DEBUG=False, ALLOWED_HOSTS=yourdomain.com, and DB credentials
-   ```
-
-4. **Prepare Assets & Database**:
-   ```bash
-   python manage.py migrate
-   python manage.py collectstatic --noinput
-   ```
-
-5. **Run with Gunicorn**:
-   ```bash
-   gunicorn --workers 3 --bind 127.0.0.1:8000 vault_ai.wsgi:application
-   ```
-
-6. **Systemd Service Setup (`/etc/systemd/system/vault_ai.service`)**:
-   ```ini
-   [Unit]
-   Description=JobVault AI Gunicorn Service
-   After=network.target
-
-   [Service]
-   User=www-data
-   Group=www-data
-   WorkingDirectory=/var/www/vault_ai/vault_ai
-   ExecStart=/var/www/vault_ai/vault_ai/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 vault_ai.wsgi:application
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-### Deploying to Render / Railway / PaaS
-
-1. **Build Command**:
-   ```bash
-   pip install -r requirements.txt && python manage.py migrate && python manage.py collectstatic --noinput
-   ```
-2. **Start Command**:
-   ```bash
-   gunicorn vault_ai.wsgi:application
-   ```
-3. **Environment Variables**:
-   - `DATABASE_URL`: Automatically populated by cloud managed PostgreSQL.
-   - `DEBUG`: `False`
-   - `SECRET_KEY`: High-entropy random key.
-   - `ALLOWED_HOSTS`: `.onrender.com` or your custom domain.
-
----
-
-## API Reference
-
-### 1. Screenshots APIs
-
-#### `GET /api/screenshots`
-Fetches uploaded screenshots with pagination and status queues.
-- **Query Params**: `limit` (default: 60)
-- **Response**:
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
 ```json
 {
-  "items": [
-    {
-      "id": 18,
-      "filename": "screenshot_01.png",
-      "original_name": "Job_Post.png",
-      "size": 184500,
-      "image": "/media/screenshots/screenshot_01.png",
-      "origin": "upload",
-      "source_app": "WhatsApp",
-      "stage": "saved",
-      "raw_text": "Customer Support Executive...",
-      "job_count": 1,
-      "created_at": "2026-11-24 10:15:00",
-      "jobs": [
-        {
-          "id": 1142,
-          "code": "C-241126-01",
-          "status": "synced"
-        }
-      ]
-    }
-  ],
-  "queue": {
-    "queued": 0,
-    "running": 0
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "success": true,
+  "message": "Login successful.",
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@jobvault.ai",
+    "role": "ADMIN"
+  },
+  "tokens": {
+    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   }
 }
 ```
 
-#### `POST /api/screenshots`
-Uploads screenshots or PDFs for Vision AI extraction.
-- **Query Params**: `combine=true` (merges uploaded parts into 1 single job).
-- **Body (`multipart/form-data`)**: `files` (Images or PDF documents).
-- **Safety Rule**: PDFs with > 100 pages return HTTP 400 with a descriptive error.
-- **Response**: `201 Created`
-```json
-{
-  "ids": [19, 20, 21]
-}
+---
+
+### 2. Screenshots Ingestion APIs
+
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/api/screenshots/` | No | Lists uploaded screenshots with status stages (`received`, `reading`, `verifying`, `sorting`, `saved`, `failed`). Supports `?limit=60`. |
+| `POST` | `/api/screenshots/` | No | Ingests job screenshots (`.png`, `.jpg`, `.webp`) or PDF documents (`.pdf`). Supports query parameter `?combine=true` to merge up to 4 elongated screenshots into 1 single job. Enforces 1–100 pages limit on PDFs. |
+| `GET` | `/api/screenshots/<id>/` | No | Retrieves details of a specific screenshot, raw OCR transcription, extracted jobs, and stage status. |
+| `POST` | `/api/screenshots/<id>/retry/` | No | Re-runs OCR vision extraction on a failed or stuck screenshot. |
+| `DELETE` | `/api/screenshots/<id>/` | No | Permanently deletes a screenshot and its associated pending jobs. |
+
+#### Sample Screenshot Upload Request (`multipart/form-data`):
+```http
+POST /api/screenshots/?combine=false
+Content-Type: multipart/form-data
+
+files: [binary file data]
 ```
-
-#### `POST /api/screenshots/<id>/retry`
-Re-runs OCR and parsing on a screenshot.
-- **Response**: `{"ok": true}`
-
-#### `DELETE /api/screenshots/<id>`
-Deletes a screenshot and its associated unsynced draft jobs.
-- **Response**: `{"ok": true}`
 
 ---
 
-### 2. Jobs APIs
+### 3. Jobs Management APIs
 
-#### `GET /api/jobs`
-List all extracted jobs with multi-facet filtering.
-- **Query Params**:
-  - `status`: `all` | `synced` | `review` | `duplicate` | `rejected`
-  - `vault`: `all` | `India · Fresher` | `Remote` | `Global` | ...
-  - `source`: `all` | `WhatsApp` | `LinkedIn` | `Telegram` | `Instagram`
-  - `q`: Search keyword (matches title, company, location, salary, job_id)
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/api/jobs/` | No | Lists all extracted jobs. Supports query filters: `status` (`synced`, `review`, `duplicate`, `rejected`), `vault` (filter by vault name), `source` (`WhatsApp`, `LinkedIn`, `Telegram`, `Instagram`), and `q` (search title, company, location, Job ID). |
+| `GET` | `/api/jobs/<id>/` | No | Retrieves full details for a specific job, including extracted attributes, evidence substrings, and linked screenshot. |
+| `PUT` | `/api/jobs/<id>/` | No | Updates job fields (`title`, `sector`, `company`, `location`, `country`, `salary`, `experience`, `qualification`, `other_details`, `work_mode`, `apply_contact`, `vault`). Automatically recalculates Job ID prefix if work mode/vault changes. |
+| `POST` | `/api/jobs/<id>/approve/` | No | Promotes a review job to `synced` (In Sheet). Allows approving jobs with empty/null fields or after manual inline editing. Generates standard Job ID if not already assigned. |
+| `POST` | `/api/jobs/<id>/reject/` | No | Moves a job to `rejected` status. |
+| `POST` | `/api/jobs/<id>/restore/` | No | Restores a previously rejected job back to `review` status. |
+| `DELETE` | `/api/jobs/<id>/` | No | Permanently deletes a job from the database. |
+| `POST` | `/api/jobs/<id>/generate-content/` | No | Uses AI to generate platform-ready social media posts for **LinkedIn** and **Instagram**, complete with hashtags, summaries, and application CTAs. |
 
-#### `GET /api/jobs/<id>`
-Retrieves full job attributes, raw OCR transcription, and extraction confidence.
-
-#### `PUT /api/jobs/<id>`
-Update job attributes (title, sector, company, location, salary, experience, qualification, other details, contact, work mode).
-
-#### `POST /api/jobs/<id>/approve`
-Promotes a pending review job to `synced` (In Sheet) and assigns a formatted `Job ID`.
-
-#### `POST /api/jobs/<id>/reject`
-Marks a job as `rejected`.
-
-#### `POST /api/jobs/<id>/generate-content`
-Generates platform-ready social media posts for LinkedIn and Instagram.
-- **Response**:
+#### Sample Social Content Generation Response:
 ```json
 {
   "ok": true,
@@ -542,8 +402,8 @@ Generates platform-ready social media posts for LinkedIn and Instagram.
   "title": "Junior Talent Acquisition Specialist",
   "company": "LevelupForWomen",
   "content": {
-    "linkedin": "🌟 We are Hiring! | Junior Talent Acquisition Specialist at LevelupForWomen 🚀...",
-    "instagram": "💼✨ NEW JOB ALERT: Junior Talent Acquisition Specialist!...",
+    "linkedin": "🌟 We are Hiring! | Junior Talent Acquisition Specialist at LevelupForWomen 🚀\n\n📍 Location: Gurgaon (Work From Home)\n💼 Experience: 1+ Years\n💰 CTC: ₹20,000–25,000 per month\n\n👉 Apply Here: https://lnkd.in/gRCMmh9d\n\n#TalentAcquisition #RemoteJobs #Hiring #HRJobs",
+    "instagram": "💼✨ NEW JOB ALERT: Junior Talent Acquisition Specialist!\n\n🏢 LevelupForWomen\n📍 Remote / Gurgaon\n⏳ 1+ Years Experience\n💵 ₹20k - ₹25k / mo\n\nApply via link in bio! 📲\n\n#Hiring #WorkFromHome #Recruiter #JobOpportunity",
     "summary": "Junior Talent Acquisition Specialist at LevelupForWomen (Remote)",
     "hashtags": ["#TalentAcquisition", "#RemoteJobs", "#HiringNow", "#Recruitment"]
   }
@@ -552,96 +412,121 @@ Generates platform-ready social media posts for LinkedIn and Instagram.
 
 ---
 
-### 3. Vaults Management APIs
+### 4. Access Vaults Management APIs
 
-#### `GET /api/vaults/`
-Returns all access vaults, their configured experience ranges, and current active job counts.
-- **Response**:
-```json
-[
-  {
-    "name": "India · Fresher",
-    "description": "India: 0-2 yrs (Freshers & 1-2 yrs)",
-    "min_exp": 0,
-    "max_exp": 2,
-    "job_count": 8,
-    "is_active": true
-  },
-  {
-    "name": "Remote",
-    "description": "Remote / work from anywhere",
-    "min_exp": 0,
-    "max_exp": 99,
-    "job_count": 5,
-    "is_active": true
-  }
-]
-```
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/api/vaults/` | No | Returns all configured access vaults, their type (`tier`, `remote`, `global`), experience bounds (`min_exp`, `max_exp`), descriptions, and live synchronized job counts. |
+| `POST` | `/api/vaults/` | No | Adds a new access vault. Automatically triggers re-classification of existing jobs in the database. |
+| `PUT` | `/api/vaults/<vault_name>/` *(or `PUT /api/vaults/`)* | No | Modifies vault name, experience criteria (`min_exp`, `max_exp`), or description. Updates vault tags across all jobs matching the new criteria. |
+| `DELETE` | `/api/vaults/<vault_name>/` | No | Deletes a custom access vault and redistributes jobs. System remote/global vaults are protected against accidental deletion. |
 
-#### `POST /api/vaults/`
-Create a new custom access vault.
-- **Payload**:
+#### Sample `GET /api/vaults/` Response:
 ```json
 {
-  "name": "Data Science & AI",
-  "description": "Machine Learning, LLM, and Data Engineering roles",
-  "min_exp": 1,
-  "max_exp": 5
+  "success": true,
+  "homeCountry": "India",
+  "remoteVault": "Remote Access Vault",
+  "globalVault": "UAE & Global Access Vault",
+  "vaults": [
+    {
+      "name": "Early Career Access Vault",
+      "type": "tier",
+      "tier_index": 0,
+      "min_exp": 0.0,
+      "max_exp": 5.0,
+      "description": "India · 0–5 yrs (Freshers & 0 to 5 yrs)",
+      "below": 5.0,
+      "count": 4
+    },
+    {
+      "name": "Management Access Vault",
+      "type": "tier",
+      "tier_index": 1,
+      "min_exp": 5.0,
+      "max_exp": 10.0,
+      "description": "India · 5–10 yrs (5 to 10 yrs)",
+      "below": 10.0,
+      "count": 2
+    },
+    {
+      "name": "Leadership Access Vault",
+      "type": "tier",
+      "tier_index": 2,
+      "min_exp": 10.0,
+      "max_exp": 15.0,
+      "description": "India · 10–15 yrs (10 to 15 yrs)",
+      "below": 15.0,
+      "count": 0
+    },
+    {
+      "name": "Executive Access Vault",
+      "type": "tier",
+      "tier_index": 3,
+      "min_exp": 15.0,
+      "max_exp": null,
+      "description": "India · 15+ yrs",
+      "below": null,
+      "count": 0
+    },
+    {
+      "name": "UAE & Global Access Vault",
+      "type": "global",
+      "tier_index": null,
+      "min_exp": null,
+      "max_exp": null,
+      "description": "Outside India, not remote",
+      "below": null,
+      "count": 2
+    },
+    {
+      "name": "Remote Access Vault",
+      "type": "remote",
+      "tier_index": null,
+      "min_exp": null,
+      "max_exp": null,
+      "description": "Remote / work from anywhere",
+      "below": null,
+      "count": 4
+    }
+  ]
 }
 ```
 
-#### `PUT /api/vaults/<name>/`
-Edit an existing vault's details or rename it.
-- **Payload**:
-```json
-{
-  "name": "India · Fresher & Intern",
-  "description": "India: 0-1 yrs (Freshers, Interns & Graduates)",
-  "min_exp": 0,
-  "max_exp": 1
-}
-```
+---
 
-#### `DELETE /api/vaults/<name>/`
-Deletes a custom vault.
+### 5. Settings & Rules APIs
+
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/api/settings/` | No | Retrieves global application settings including AI vision configuration, vault rules, and active column definitions. |
+| `GET` | `/api/settings/ai/` | No | Returns AI vision settings (`provider`, `threshold`, `strict`, `dedupe`, `dedupeDays`, `extraInstructions`). |
+| `PUT` | `/api/settings/ai/` | No | Updates AI vision settings and deduplication parameters. |
+| `GET` | `/api/settings/rules/` | No | Retrieves current vault classification rules and tier boundaries. |
+| `PUT` | `/api/settings/rules/` | No | Updates vault classification rules and saves to database. |
+| `POST` | `/api/rules/test/` | No | Simulates job classification for arbitrary input (`country`, `work_mode`, `exp_min`, `exp_max`, `salary`) without modifying database records. |
+| `GET` | `/api/settings/columns/` | No | Retrieves client sheet column definitions, labels, and required flags. |
+| `PUT` | `/api/settings/columns/` | No | Reorders, enables/disables, or updates column definitions. |
 
 ---
 
-### 4. Export APIs
+### 6. Export APIs (Excel & CSV)
 
-#### `GET /api/export.xlsx`
-Downloads the complete **Client-Standard 12-Column Excel Workbook** (`Website_Load_Export.xlsx`).
-- Contains `All Jobs` tab + individual Access Vault tabs.
-- Custom Navy Dark `#15202C` header styling with auto-width columns.
-
-#### `GET /api/export.csv`
-Downloads the filtered or complete dataset in standard 12-column CSV format (`Website_Load_Export.csv`).
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/api/export.xlsx` | No | Downloads the complete **12-Column Multi-Tab Excel Workbook** (`Website_Load_Export.xlsx`). Contains `All Jobs` tab plus tabs for each vault (`Early Career Access Vault`, `Management Access Vault`, `Leadership Access Vault`, `Executive Access Vault`, `Remote Access Vault`, `UAE & Global Access Vault`). |
+| `GET` | `/api/export.csv` | No | Downloads job records formatted in the client standard 12-column layout as a CSV file (`Website_Load_Export.csv`). Supports filtering by `?vault=`, `?source=`, `?status=`, and `?q=`. |
 
 ---
 
-### 5. Authentication & Security Suite
+### 7. System Health, Stats & Monitoring APIs
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Authenticates user with username/email and password, returns JWT Access & Refresh tokens. |
-| `POST` | `/api/auth/signup` / `/api/auth/register` | Registers new administrator account. |
-| `POST` | `/api/auth/token/refresh` | Refreshes expired JWT Access Token. |
-| `GET` / `PUT` | `/api/auth/me` | Retrieves or updates the currently logged-in user profile. |
-| `POST` | `/api/auth/change-password` | Authenticated user changes password (requires `old_password` and `new_password`). |
-| `POST` | `/api/auth/forgot-password` | Initiates password reset by email. Generates secure reset token & 6-digit OTP (15 min expiry). |
-| `POST` | `/api/auth/verify-reset-token` | Verifies whether the supplied OTP or reset token is valid before setting a new password. |
-| `POST` | `/api/auth/reset-password` | Confirms and updates the user's password using the validated token or OTP. |
-| `POST` | `/api/auth/logout` | Logs out the user and invalidates/blacklists the refresh token. |
-
----
-
-### 6. System & Integration APIs
-
-- `GET /api/stats`: Real-time KPI counts (Total screenshots, In Sheet jobs, Review queue, Vault breakdown).
-- `GET /api/activity`: Activity audit trail logs.
-- `GET /api/integrations`: Active AI vision provider status (`openai`, `gemini`, `mock`).
-- `PUT /api/settings/ai`: Update AI threshold, strict validation, and deduplication settings.
-- `PUT /api/settings/rules`: Update vault tier sorting rules and experience cutoffs.
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/api/health/` | No | System health check endpoint. Returns `{"ok": true, "provider": "mock", "authRequired": false}`. |
+| `GET` | `/api/stats/` | No | Provides real-time metrics for Dashboard KPI cards: total screenshots, synced in-sheet jobs, review queue count, duplicate counts, jobs by vault, jobs by source, and 14-day daily processing trend graph. |
+| `GET` | `/api/activity/` | No | Retrieves recent audit trail logs (`ADMIN_LOGIN`, `Review`, `VAULT_CREATED`, `ADMIN_PASSWORD_CHANGE`). Supports `?limit=50`. |
+| `GET` | `/api/integrations/` | No | Returns available AI Vision providers (`openai`, `gemini`, `mock`), configured models, and active connection status. |
 
 ---
 
@@ -661,7 +546,7 @@ Found 11 test(s).
 System check identified no issues (0 silenced).
 ...........
 ----------------------------------------------------------------------
-Ran 11 tests in 13.049s
+Ran 11 tests in 14.954s
 
 OK
 Destroying test database for alias 'default'...
