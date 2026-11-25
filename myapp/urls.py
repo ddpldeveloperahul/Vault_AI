@@ -57,9 +57,9 @@ urlpatterns = [
     path("health", HealthView.as_view()),
     path("stats/", StatsView.as_view(), name="stats"),
     path("stats", StatsView.as_view()),
-    path("activity/", ActivityView.as_view(), name="activity"),
+    path("activity/", ActivityView.as_view(), name="activity-api"),
     path("activity", ActivityView.as_view()),
-    path("integrations/", IntegrationsView.as_view(), name="integrations"),
+    path("integrations/", IntegrationsView.as_view(), name="integrations-api"),
     path("integrations", IntegrationsView.as_view()),
 
     # Screenshots

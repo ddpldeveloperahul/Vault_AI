@@ -3574,6 +3574,8 @@
       if (p === 'vault' || p === 'vaults') return 'vaults';
       if (p === 'review' || p === 'reviews') return 'review';
       if (p === 'inbox' || p === 'screenshots') return 'inbox';
+      if (p === 'activity' || p === 'api/activity') return 'activity';
+      if (p === 'integrations' || p === 'api/integrations') return 'integrations';
       if (V[p]) return p;
       return 'dashboard';
     }
