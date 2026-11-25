@@ -238,7 +238,8 @@ class JobVaultAPITests(APITestCase):
             "username": "adminuser",
             "password": "SecurePassword123!"
         }, format="json")
-        # In LoginView, invalid password falls back to active user or rejects
+        self.assertEqual(old_login.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(old_login.data["error"], "Invalid username or password.")
         self.admin.refresh_from_db()
         self.assertTrue(self.admin.check_password(new_pass))
         self.assertFalse(self.admin.check_password("SecurePassword123!"))

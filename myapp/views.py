@@ -1429,29 +1429,21 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        # Support both admin password only (for demo UI) and full credentials
-        password = request.data.get("password")
-        username = request.data.get("username") or request.data.get("email")
+        serializer = LoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            error_msg = "Invalid username or password."
+            if "non_field_errors" in serializer.errors and serializer.errors["non_field_errors"]:
+                error_msg = serializer.errors["non_field_errors"][0]
+            elif serializer.errors:
+                first_k = list(serializer.errors.keys())[0]
+                first_v = serializer.errors[first_k]
+                error_msg = first_v[0] if isinstance(first_v, list) else str(first_v)
+            return Response(
+                {"error": error_msg, "detail": error_msg, "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        user = None
-        # If username is provided, use standard LoginSerializer
-        if username and password:
-            try:
-                serializer = LoginSerializer(data=request.data)
-                serializer.is_valid(raise_exception=True)
-                user = serializer.validated_data["user"]
-            except Exception:
-                user = User.objects.filter(is_active=True).first()
-        elif password:
-            user = User.objects.filter(is_active=True).first()
-            if not user or not user.check_password(password):
-                user = User.objects.filter(is_active=True).first()
-        else:
-            user = User.objects.filter(is_active=True).first()
-
-        if not user:
-            user = User.objects.create_superuser("admin", "admin@gmail.com", "admin123", role="ADMIN")
-
+        user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
 
         ActivityLog.objects.create(
@@ -1480,13 +1472,11 @@ LoginAPIView = LoginView
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
 
     def get_object(self):
-        if self.request.user and self.request.user.is_authenticated:
-            return self.request.user
-        return User.objects.filter(is_active=True).first()
+        return self.request.user
 
 
 class LogoutView(APIView):
