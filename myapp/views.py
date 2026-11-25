@@ -1222,13 +1222,10 @@ def job_matches_sheet(job, sheet_name):
     # 7. Executive Access Vault (15+ yrs)
     if "Executive" in sheet_name:
         exp_hi = job.exp_max if job.exp_max is not None else job.exp_min
-        title_lower = str(getattr(job, "title", "") or "").lower()
-        is_exec = any(k in title_lower for k in ["ceo", "cxo", "cfo", "cto", "coo", "chro", "partner", "vp", "director", "president", "founder"])
         return (
             "Executive Access Vault" in vaults
             or "Executive Access Vault" in stored
             or (exp_hi is not None and exp_hi >= 15)
-            or is_exec
             or str(getattr(job, "job_id", "")).startswith("E-")
         )
 
