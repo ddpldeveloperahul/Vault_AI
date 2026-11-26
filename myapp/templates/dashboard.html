@@ -2441,7 +2441,7 @@
     const STAGE_LABEL = { received: 'Waiting in queue', reading: 'AI is reading the image', verifying: 'Checking every value against the text', sorting: 'Skipping duplicates, sorting to vault', saved: 'Done', failed: 'Failed' };
 
     /* ---------- state ---------- */
-    const S = { token: null, settings: null, stats: null, jobFilter: { q: '', vault: 'all', status: 'all', source: 'all', page: 1, pageSize: 50 }, shotFilter: { page: 1, pageSize: 50 }, jobs: [], pollTimer: null };
+    const S = { token: null, settings: null, stats: null, jobFilter: { q: '', vault: 'all', status: 'all', source: 'all', page: 1, pageSize: 50 }, shotFilter: { page: 1, pageSize: 50 }, revFilter: { page: 1, pageSize: 25 }, actFilter: { page: 1, pageSize: 50 }, jobs: [], pollTimer: null };
     try { S.token = localStorage.getItem('jv_token'); } catch { }
 
     /* ---------- api ---------- */
@@ -3329,9 +3329,46 @@
     };
 
     V.review = async () => {
-      const d = await api('/jobs?status=review&limit=200');
+      const rf = S.revFilter || (S.revFilter = { page: 1, pageSize: 25 });
+      const d = await api(`/jobs?status=review&page=${rf.page}&page_size=${rf.pageSize}`);
+      const p = d.pagination || { total: d.items.length, page: 1, page_size: d.items.length || 25, total_pages: 1, has_next: false, has_prev: false };
+      rf.page = p.page;
+      rf.pageSize = p.page_size;
+      const total = p.total;
+      const startIdx = total === 0 ? 0 : (p.page - 1) * p.page_size + 1;
+      const endIdx = Math.min(p.page * p.page_size, total);
+
+      setTimeout(() => {
+        const sel = $('#revPageSize');
+        if (sel) sel.onchange = (e) => { rf.pageSize = Number(e.target.value); rf.page = 1; render(true); };
+        const prevB = $('#revPrevBtn');
+        if (prevB && p.has_prev) prevB.onclick = () => { rf.page = Math.max(1, p.page - 1); render(true); };
+        const nextB = $('#revNextBtn');
+        if (nextB && p.has_next) nextB.onclick = () => { rf.page = Math.min(p.total_pages, p.page + 1); render(true); };
+      }, 0);
+
       return head('', 'Review queue', `The AI could not read these clearly, so it left the unclear fields empty instead of guessing. Check the highlighted fields against the screenshot, then approve. Jobs at ${S.settings.ai.threshold}% confidence or higher skip this step.`) +
-        `<div class="panel" id="revList">${d.items.length ? d.items.map(reviewCard).join('') : '<div class="empty"><b>All clear</b><span>No jobs are waiting for review.</span></div>'}</div>`;
+        `<div class="panel" id="revList">${d.items.length ? d.items.map(reviewCard).join('') : '<div class="empty"><b>All clear</b><span>No jobs are waiting for review.</span></div>'}
+        ${total > 0 ? `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:16px;font-size:.85rem;color:var(--muted)">
+            <span>Showing <b>${startIdx}–${endIdx}</b> of <b>${total}</b> review jobs</span>
+            <label style="display:inline-flex;align-items:center;gap:6px">
+              <span>Per page:</span>
+              <select class="input sm" id="revPageSize" style="padding:3px 8px;height:auto;font-size:.82rem">
+                <option value="10" ${rf.pageSize === 10 ? 'selected' : ''}>10</option>
+                <option value="25" ${rf.pageSize === 25 ? 'selected' : ''}>25</option>
+                <option value="50" ${rf.pageSize === 50 ? 'selected' : ''}>50</option>
+              </select>
+            </label>
+          </div>
+          <div style="display:inline-flex;align-items:center;gap:6px">
+            <button class="btn sm" id="revPrevBtn" ${!p.has_prev ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>« Previous</button>
+            <span class="mono" style="padding:0 8px;font-size:.85rem;font-weight:600">Page ${p.page} of ${p.total_pages}</span>
+            <button class="btn sm" id="revNextBtn" ${!p.has_next ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>Next »</button>
+          </div>
+        </div>` : ''}
+        </div>`;
     };
     function fieldInput(j, k, label, extra = '') {
       const flagged = j.flags.includes(k);
@@ -3460,9 +3497,45 @@
     };
 
     V.activity = async () => {
-      const d = await api('/activity');
+      const af = S.actFilter || (S.actFilter = { page: 1, pageSize: 50 });
+      const d = await api(`/activity?page=${af.page}&page_size=${af.pageSize}`);
+      const p = d.pagination || { total: d.items.length, page: 1, page_size: d.items.length || 50, total_pages: 1, has_next: false, has_prev: false };
+      af.page = p.page;
+      af.pageSize = p.page_size;
+      const total = p.total;
+      const startIdx = total === 0 ? 0 : (p.page - 1) * p.page_size + 1;
+      const endIdx = Math.min(p.page * p.page_size, total);
+
+      setTimeout(() => {
+        const sel = $('#actPageSize');
+        if (sel) sel.onchange = (e) => { af.pageSize = Number(e.target.value); af.page = 1; render(true); };
+        const prevB = $('#actPrevBtn');
+        if (prevB && p.has_prev) prevB.onclick = () => { af.page = Math.max(1, p.page - 1); render(true); };
+        const nextB = $('#actNextBtn');
+        if (nextB && p.has_next) nextB.onclick = () => { af.page = Math.min(p.total_pages, p.page + 1); render(true); };
+      }, 0);
+
       return head('Admin', 'Activity log', 'Everything the system did, newest first.') +
-        `<div class="panel log">${d.items.length ? d.items.map(l => `<div class="li"><span class="mono muted small">${when(l.at)}</span><b>${esc(l.actor)}</b><span>${esc(l.message)}</span></div>`).join('') : '<div class="empty">Nothing yet.</div>'}</div>`;
+        `<div class="panel log">${d.items.length ? d.items.map(l => `<div class="li"><span class="mono muted small">${when(l.at)}</span><b>${esc(l.actor)}</b><span>${esc(l.message)}</span></div>`).join('') : '<div class="empty">Nothing yet.</div>'}</div>
+        ${total > 0 ? `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);background:var(--panel-2);border-radius:0 0 10px 10px;margin-top:-1px;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:16px;font-size:.85rem;color:var(--muted)">
+            <span>Showing <b>${startIdx}–${endIdx}</b> of <b>${total}</b> activities</span>
+            <label style="display:inline-flex;align-items:center;gap:6px">
+              <span>Per page:</span>
+              <select class="input sm" id="actPageSize" style="padding:3px 8px;height:auto;font-size:.82rem">
+                <option value="25" ${af.pageSize === 25 ? 'selected' : ''}>25</option>
+                <option value="50" ${af.pageSize === 50 ? 'selected' : ''}>50</option>
+                <option value="100" ${af.pageSize === 100 ? 'selected' : ''}>100</option>
+              </select>
+            </label>
+          </div>
+          <div style="display:inline-flex;align-items:center;gap:6px">
+            <button class="btn sm" id="actPrevBtn" ${!p.has_prev ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>« Previous</button>
+            <span class="mono" style="padding:0 8px;font-size:.85rem;font-weight:600">Page ${p.page} of ${p.total_pages}</span>
+            <button class="btn sm" id="actNextBtn" ${!p.has_next ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>Next »</button>
+          </div>
+        </div>` : ''}`;
     };
 
     /* ---------- AI Social Content Generator ---------- */

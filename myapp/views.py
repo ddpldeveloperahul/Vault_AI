@@ -1153,9 +1153,45 @@ class ActivityView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        logs = ActivityLog.objects.all().order_by("-created_at")[:300]
-        items = ActivityLogSerializer(logs, many=True).data
-        return Response({"items": items})
+        base_qs = ActivityLog.objects.all().order_by("-created_at")
+        total_count = base_qs.count()
+
+        page_param = request.query_params.get("page")
+        page_size_param = request.query_params.get("page_size")
+
+        if page_param is not None or page_size_param is not None:
+            try:
+                page = max(1, int(page_param or 1))
+            except (ValueError, TypeError):
+                page = 1
+            try:
+                page_size = max(1, min(100, int(page_size_param or 50)))
+            except (ValueError, TypeError):
+                page_size = 50
+
+            import math
+            total_pages = max(1, math.ceil(total_count / page_size)) if total_count > 0 else 1
+            if page > total_pages and total_count > 0:
+                page = total_pages
+
+            start = (page - 1) * page_size
+            end = start + page_size
+            items = ActivityLogSerializer(base_qs[start:end], many=True).data
+            return Response({
+                "items": items,
+                "pagination": {
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages,
+                    "has_next": page < total_pages,
+                    "has_prev": page > 1,
+                }
+            })
+        else:
+            logs = base_qs[:300]
+            items = ActivityLogSerializer(logs, many=True).data
+            return Response({"items": items, "total": total_count})
 
 
 # ------------------ Excel & CSV Export ------------------
