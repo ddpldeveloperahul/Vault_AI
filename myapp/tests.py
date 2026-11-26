@@ -75,6 +75,28 @@ class JobVaultAPITests(APITestCase):
         res_vault = self.client.get("/api/jobs?vault=Early Career Access Vault")
         self.assertEqual(len(res_vault.data["items"]), 1)
 
+    def test_jobs_and_screenshots_pagination(self):
+        shot1 = Screenshot.objects.create(filename="shot1.jpg", original_name="shot1.jpg")
+        shot2 = Screenshot.objects.create(filename="shot2.jpg", original_name="shot2.jpg")
+        Job.objects.create(screenshot=shot1, title="Dev 1", company="A", status="synced", vault="Default")
+        Job.objects.create(screenshot=shot2, title="Dev 2", company="B", status="synced", vault="Default")
+
+        # Test jobs pagination
+        res = self.client.get("/api/jobs?page=1&page_size=1")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("pagination", res.data)
+        self.assertEqual(res.data["pagination"]["page"], 1)
+        self.assertEqual(res.data["pagination"]["page_size"], 1)
+        self.assertEqual(len(res.data["items"]), 1)
+        self.assertTrue(res.data["pagination"]["has_next"])
+
+        # Test screenshots pagination
+        res_shots = self.client.get("/api/screenshots?page=1&page_size=1")
+        self.assertEqual(res_shots.status_code, status.HTTP_200_OK)
+        self.assertIn("pagination", res_shots.data)
+        self.assertEqual(len(res_shots.data["items"]), 1)
+        self.assertEqual(res_shots.data["pagination"]["page_size"], 1)
+
     def test_job_approve_reject_restore(self):
         shot = Screenshot.objects.create(filename="shot.jpg", original_name="shot.jpg")
         job = Job.objects.create(

@@ -2441,7 +2441,7 @@
     const STAGE_LABEL = { received: 'Waiting in queue', reading: 'AI is reading the image', verifying: 'Checking every value against the text', sorting: 'Skipping duplicates, sorting to vault', saved: 'Done', failed: 'Failed' };
 
     /* ---------- state ---------- */
-    const S = { token: null, settings: null, stats: null, jobFilter: { q: '', vault: 'all', status: 'all', source: 'all' }, jobs: [], pollTimer: null };
+    const S = { token: null, settings: null, stats: null, jobFilter: { q: '', vault: 'all', status: 'all', source: 'all', page: 1, pageSize: 50 }, shotFilter: { page: 1, pageSize: 50 }, jobs: [], pollTimer: null };
     try { S.token = localStorage.getItem('jv_token'); } catch { }
 
     /* ---------- api ---------- */
@@ -3086,8 +3086,25 @@
     };
 
     V.inbox = async () => {
-      const d = await api('/screenshots?limit=100');
+      const sf = S.shotFilter || (S.shotFilter = { page: 1, pageSize: 50 });
+      const d = await api(`/screenshots?page=${sf.page}&page_size=${sf.pageSize}`);
       const google = (await api('/integrations')).google;
+      const p = d.pagination || { total: d.items.length, page: 1, page_size: d.items.length || 50, total_pages: 1, has_next: false, has_prev: false };
+      sf.page = p.page;
+      sf.pageSize = p.page_size;
+      const total = p.total;
+      const startIdx = total === 0 ? 0 : (p.page - 1) * p.page_size + 1;
+      const endIdx = Math.min(p.page * p.page_size, total);
+
+      setTimeout(() => {
+        const sel = $('#shotPageSize');
+        if (sel) sel.onchange = (e) => { sf.pageSize = Number(e.target.value); sf.page = 1; render(true); };
+        const prevB = $('#shotPrevBtn');
+        if (prevB && p.has_prev) prevB.onclick = () => { sf.page = Math.max(1, p.page - 1); render(true); };
+        const nextB = $('#shotNextBtn');
+        if (nextB && p.has_next) nextB.onclick = () => { sf.page = Math.min(p.total_pages, p.page + 1); render(true); };
+      }, 0);
+
       return head('', 'Screenshots', `Add as many screenshots as you like. Each one is read on its own, so there is no 10–20 image limit and no need to make PDFs.${google.drive.enabled ? ' New files in your Google Drive folder are picked up automatically.' : ''}`,
         google.drive.enabled ? `<button class="btn" data-act="drive">${IC.sync}Check Google Drive now</button>` : '') +
         `<div class="panel"><div class="panel-b">
@@ -3108,7 +3125,27 @@
     <div id="upProg" class="row" style="margin-top:12px" hidden><span class="small muted" id="upTxt"></span><div class="progress"><i id="upBar" style="width:0"></i></div></div>
   </div></div>
   <div class="panel"><div class="panel-h"><h2>Recent screenshots</h2><span class="muted small" id="qInfo">${d.queue.queued + d.queue.running ? `${d.queue.running} reading now · ${d.queue.queued} waiting` : 'Queue is empty'}</span></div>
-    <div id="shotList">${shotRows(d.items)}</div></div>`;
+    <div id="shotList">${shotRows(d.items)}</div>
+    ${total > 0 ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:center;gap:16px;font-size:.85rem;color:var(--muted)">
+        <span>Showing <b>${startIdx}–${endIdx}</b> of <b>${total}</b> screenshots</span>
+        <label style="display:inline-flex;align-items:center;gap:6px">
+          <span>Per page:</span>
+          <select class="input sm" id="shotPageSize" style="padding:3px 8px;height:auto;font-size:.82rem">
+            <option value="25" ${sf.pageSize === 25 ? 'selected' : ''}>25</option>
+            <option value="50" ${sf.pageSize === 50 ? 'selected' : ''}>50</option>
+            <option value="100" ${sf.pageSize === 100 ? 'selected' : ''}>100</option>
+          </select>
+        </label>
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:6px">
+        <button class="btn sm" id="shotPrevBtn" ${!p.has_prev ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>« Previous</button>
+        <span class="mono" style="padding:0 8px;font-size:.85rem;font-weight:600">Page ${p.page} of ${p.total_pages}</span>
+        <button class="btn sm" id="shotNextBtn" ${!p.has_next ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>Next »</button>
+      </div>
+    </div>` : ''}
+  </div>`;
     };
     function shotRows(items) {
       if (!items.length) return '<div class="empty"><b>No screenshots yet</b><span>Drop your first screenshots above.</span></div>';
@@ -3152,21 +3189,63 @@
     <select class="input" id="fsrc" aria-label="Source"><option value="all">All sources</option>${sources.map(v => `<option ${f.source === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
     <div class="seg" id="fs">${[['all', 'All'], ['synced', 'In sheet'], ['review', 'Review'], ['duplicate', 'Duplicates'], ['rejected', 'Rejected']].map(([k, n]) => `<button data-s="${k}" class="${f.status === k ? 'on' : ''}">${n}</button>`).join('')}</div>
   </div><span class="muted mono small" id="cnt"></span></div>
-  <div class="tbl-wrap" id="jt"><div class="skeleton" style="margin:16px"></div></div></div>`;
+  <div class="tbl-wrap" id="jt"><div class="skeleton" style="margin:16px"></div></div>
+  <div id="jp"></div></div>`;
     };
     let jobsReq = 0;
     async function loadJobs() {
       const f = S.jobFilter, my = ++jobsReq;
-      const qs = new URLSearchParams({ q: f.q, vault: f.vault, status: f.status, source: f.source });
+      const page = f.page || 1;
+      const pageSize = f.pageSize || 50;
+      const qs = new URLSearchParams({ q: f.q, vault: f.vault, status: f.status, source: f.source, page: page, page_size: pageSize });
       const d = await api('/jobs?' + qs);
       if (my !== jobsReq || !$('#jt')) return;
       S.jobs = d.items;
       const exp = new URLSearchParams({ vault: f.vault, source: f.source, q: f.q, status: f.status === 'all' ? 'synced' : f.status });
       $('#xlsxBtn').href = withT('/api/export.xlsx?' + exp); $('#csvBtn').href = withT('/api/export.csv?' + exp);
-      $('#cnt').textContent = `${d.items.length} job${d.items.length === 1 ? '' : 's'}`;
+      const p = d.pagination || { total: d.items.length, page: 1, page_size: d.items.length || 50, total_pages: 1, has_next: false, has_prev: false };
+      f.page = p.page;
+      f.pageSize = p.page_size;
+      const total = p.total;
+      const startIdx = total === 0 ? 0 : (p.page - 1) * p.page_size + 1;
+      const endIdx = Math.min(p.page * p.page_size, total);
+      $('#cnt').textContent = `${total} job${total === 1 ? '' : 's'}`;
       $('#jt').innerHTML = d.items.length ? `<table><thead><tr><th>ID</th><th>Job title / company</th><th>Location</th><th>Experience</th><th>Salary</th><th>Vault</th><th>Source</th><th>Confidence</th><th>Status</th></tr></thead><tbody>
     ${d.items.map(j => `<tr class="click" data-open="${j.id}"><td class="mono muted small">${j.code}</td><td class="t"><b>${esc(j.title || '—')}</b><span>${esc(j.company || '—')}</span></td><td>${esc(j.location || '—')}${j.work_mode ? `<div class="muted small">${esc(j.work_mode)}</div>` : ''}</td><td class="mono">${esc(j.experience || '—')}</td><td>${esc(j.salary || '—')}</td><td>${(j.vaults && j.vaults.length ? j.vaults : [j.vault]).map(v => `<span class="vault-tag" style="margin-right:4px">${esc(v)}</span>`).join('')}</td><td>${src(j.source_app)}</td><td>${conf(j.confidence)}</td><td>${pill(j.status)}</td></tr>`).join('')}
   </tbody></table>` : `<div class="empty"><b>No jobs match</b><span>Try another vault or status, or clear the search.</span></div>`;
+
+      const jp = $('#jp');
+      if (jp) {
+        if (total > 0) {
+          jp.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;gap:12px">
+            <div style="display:flex;align-items:center;gap:16px;font-size:.85rem;color:var(--muted)">
+              <span>Showing <b>${startIdx}–${endIdx}</b> of <b>${total}</b> jobs</span>
+              <label style="display:inline-flex;align-items:center;gap:6px">
+                <span>Per page:</span>
+                <select class="input sm" id="jobPageSize" style="padding:3px 8px;height:auto;font-size:.82rem">
+                  <option value="25" ${f.pageSize === 25 ? 'selected' : ''}>25</option>
+                  <option value="50" ${f.pageSize === 50 ? 'selected' : ''}>50</option>
+                  <option value="100" ${f.pageSize === 100 ? 'selected' : ''}>100</option>
+                </select>
+              </label>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:6px">
+              <button class="btn sm" id="jobPrevBtn" ${!p.has_prev ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>« Previous</button>
+              <span class="mono" style="padding:0 8px;font-size:.85rem;font-weight:600">Page ${p.page} of ${p.total_pages}</span>
+              <button class="btn sm" id="jobNextBtn" ${!p.has_next ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>Next »</button>
+            </div>
+          </div>`;
+          const sel = $('#jobPageSize');
+          if (sel) sel.onchange = (e) => { f.pageSize = Number(e.target.value); f.page = 1; loadJobs(); };
+          const prevB = $('#jobPrevBtn');
+          if (prevB && p.has_prev) prevB.onclick = () => { f.page = Math.max(1, p.page - 1); loadJobs(); };
+          const nextB = $('#jobNextBtn');
+          if (nextB && p.has_next) nextB.onclick = () => { f.page = Math.min(p.total_pages, p.page + 1); loadJobs(); };
+        } else {
+          jp.innerHTML = '';
+        }
+      }
     }
     function copyExcel() {
       const headers = ['S. No.', 'Job ID', 'Date', 'Role', 'Sector', 'Company', 'Salary', 'Location', 'Experience', 'Qualification', 'Other Details', 'How to apply'];
@@ -3760,8 +3839,8 @@
         if (d.zoom) { e.preventDefault(); const lb = document.createElement('div'); lb.className = 'lightbox'; lb.innerHTML = `<img src="${esc(d.zoom)}" alt="Screenshot">`; lb.onclick = () => lb.remove(); document.body.appendChild(lb); return; }
         if (d.open) { e.preventDefault(); return openJob(d.open); }
         if ('close' in d) return closeLayer();
-        if (d.vault) { S.jobFilter.vault = d.vault; return; }
-        if (t.matches('#fs button')) { S.jobFilter.status = d.s; $$('#fs button').forEach(b => b.classList.toggle('on', b === t)); return loadJobs(); }
+        if (d.vault) { S.jobFilter.vault = d.vault; S.jobFilter.page = 1; return; }
+        if (t.matches('#fs button')) { S.jobFilter.status = d.s; S.jobFilter.page = 1; $$('#fs button').forEach(b => b.classList.toggle('on', b === t)); return loadJobs(); }
         if (d.approve) {
           const root = d.from === 'drawer' ? $('#editForm') : t.closest('.rcard');
           t.disabled = true;
@@ -3817,8 +3896,8 @@
     document.addEventListener('change', e => {
       const t = e.target;
       if (t.id === 'fileIn') { upload(t.files); t.value = ''; }
-      if (t.id === 'fv') { S.jobFilter.vault = t.value; loadJobs(); }
-      if (t.id === 'fsrc') { S.jobFilter.source = t.value; loadJobs(); }
+      if (t.id === 'fv') { S.jobFilter.vault = t.value; S.jobFilter.page = 1; loadJobs(); }
+      if (t.id === 'fsrc') { S.jobFilter.source = t.value; S.jobFilter.page = 1; loadJobs(); }
       if (t.dataset.creq) { syncColDraft(); const c = colDraft[+t.dataset.creq]; c.required = t.checked; if (t.checked) c.enabled = true; $('#colList').innerHTML = colRows(); }
       if (t.dataset.con) { syncColDraft(); colDraft[+t.dataset.con].enabled = t.checked; $('#colList').innerHTML = colRows(); }
       if (['tMode'].includes(t.id)) testRule();
@@ -3826,7 +3905,7 @@
     let qTimer;
     document.addEventListener('input', e => {
       const t = e.target;
-      if (t.id === 'q') { clearTimeout(qTimer); qTimer = setTimeout(() => { S.jobFilter.q = t.value; loadJobs(); }, 250); }
+      if (t.id === 'q') { clearTimeout(qTimer); qTimer = setTimeout(() => { S.jobFilter.q = t.value; S.jobFilter.page = 1; loadJobs(); }, 250); }
       if (['tExp', 'tCountry'].includes(t.id)) testRule();
       if (t.id === 'thr') $('#thrV').textContent = t.value + '%';
       const card = t.closest?.('.rcard');

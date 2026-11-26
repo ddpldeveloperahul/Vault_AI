@@ -174,14 +174,52 @@ class ScreenshotsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        limit = int(request.query_params.get("limit", 60))
-        screenshots = Screenshot.objects.exclude(origin="excel_import").order_by("-id")[:limit]
-        items = ScreenshotSerializer(screenshots, many=True, context={"request": request}).data
+        base_qs = Screenshot.objects.exclude(origin="excel_import").order_by("-id")
+        total_count = base_qs.count()
+
         queue_info = {
             "queued": Screenshot.objects.exclude(origin="excel_import").filter(stage="received").count(),
             "running": Screenshot.objects.exclude(origin="excel_import").exclude(stage__in=["received", "saved", "failed"]).count(),
         }
-        return Response({"items": items, "queue": queue_info})
+
+        page_param = request.query_params.get("page")
+        page_size_param = request.query_params.get("page_size")
+
+        if page_param is not None or page_size_param is not None:
+            try:
+                page = max(1, int(page_param or 1))
+            except (ValueError, TypeError):
+                page = 1
+            try:
+                page_size = max(1, min(100, int(page_size_param or 50)))
+            except (ValueError, TypeError):
+                page_size = 50
+
+            import math
+            total_pages = max(1, math.ceil(total_count / page_size)) if total_count > 0 else 1
+            if page > total_pages and total_count > 0:
+                page = total_pages
+
+            start = (page - 1) * page_size
+            end = start + page_size
+            items = ScreenshotSerializer(base_qs[start:end], many=True, context={"request": request}).data
+            return Response({
+                "items": items,
+                "queue": queue_info,
+                "pagination": {
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages,
+                    "has_next": page < total_pages,
+                    "has_prev": page > 1,
+                }
+            })
+        else:
+            limit = int(request.query_params.get("limit", 60))
+            screenshots = base_qs[:limit]
+            items = ScreenshotSerializer(screenshots, many=True, context={"request": request}).data
+            return Response({"items": items, "queue": queue_info, "total": total_count})
 
     def post(self, request):
         files = request.FILES.getlist("files")
@@ -418,7 +456,6 @@ class JobsListView(APIView):
         vault = request.query_params.get("vault", "all")
         stat = request.query_params.get("status", "all")
         source = request.query_params.get("source", "all")
-        limit = int(request.query_params.get("limit", 1000))
 
         queryset = Job.objects.all().select_related("screenshot")
 
@@ -441,9 +478,46 @@ class JobsListView(APIView):
                 | Q(salary__icontains=q)
             )
 
-        queryset = queryset.order_by("-id")[:limit]
-        items = JobSerializer(queryset, many=True, context={"request": request}).data
-        return Response({"items": items})
+        total_count = queryset.count()
+        queryset = queryset.order_by("-id")
+
+        page_param = request.query_params.get("page")
+        page_size_param = request.query_params.get("page_size")
+
+        if page_param is not None or page_size_param is not None:
+            try:
+                page = max(1, int(page_param or 1))
+            except (ValueError, TypeError):
+                page = 1
+            try:
+                page_size = max(1, min(100, int(page_size_param or 50)))
+            except (ValueError, TypeError):
+                page_size = 50
+
+            import math
+            total_pages = max(1, math.ceil(total_count / page_size)) if total_count > 0 else 1
+            if page > total_pages and total_count > 0:
+                page = total_pages
+
+            start = (page - 1) * page_size
+            end = start + page_size
+            items = JobSerializer(queryset[start:end], many=True, context={"request": request}).data
+
+            return Response({
+                "items": items,
+                "pagination": {
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages,
+                    "has_next": page < total_pages,
+                    "has_prev": page > 1,
+                }
+            })
+        else:
+            limit = int(request.query_params.get("limit", 1000))
+            items = JobSerializer(queryset[:limit], many=True, context={"request": request}).data
+            return Response({"items": items, "total": total_count})
 
 
 class JobDetailView(APIView):
