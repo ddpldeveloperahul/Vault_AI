@@ -357,4 +357,34 @@ class JobVaultAPITests(APITestCase):
         self.assertTrue(res_case3.data.get("combined"))
         self.assertEqual(res_case3.data.get("parts_count"), 3)
 
+    def test_boundary_overlapping_vaults(self):
+        from myapp.utils import get_job_vault_list, classify_job
+
+        # Case 1: 10 yrs + Remote -> 3 vaults: Remote, Management (5-10), Leadership (10-15)
+        v10_remote = get_job_vault_list({"exp_min": 10.0, "exp_max": 10.0, "work_mode": "Remote", "location": "Bengaluru"})
+        self.assertIn("Remote Access Vault", v10_remote)
+        self.assertIn("Management Access Vault", v10_remote)
+        self.assertIn("Leadership Access Vault", v10_remote)
+        self.assertNotIn("Executive Access Vault", v10_remote)
+        self.assertNotIn("Early Career Access Vault", v10_remote)
+
+        # Case 2: 5 yrs + Onsite -> 2 vaults: Early Career (0-5), Management (5-10)
+        v5_onsite = get_job_vault_list({"exp_min": 5.0, "exp_max": 5.0, "work_mode": "Onsite", "location": "Pune"})
+        self.assertIn("Early Career Access Vault", v5_onsite)
+        self.assertIn("Management Access Vault", v5_onsite)
+        self.assertNotIn("Leadership Access Vault", v5_onsite)
+        self.assertNotIn("Remote Access Vault", v5_onsite)
+
+        # Case 3: 3 yrs + Onsite -> 1 vault: Early Career only
+        v3_onsite = get_job_vault_list({"exp_min": 3.0, "exp_max": 3.0, "work_mode": "Onsite", "location": "Noida"})
+        self.assertEqual(v3_onsite, ["Early Career Access Vault"])
+
+        # Case 4: 15 yrs + Onsite -> 2 vaults: Leadership (10-15), Executive (15+)
+        v15_onsite = get_job_vault_list({"exp_min": 15.0, "exp_max": 15.0, "work_mode": "Onsite", "location": "Mumbai"})
+        self.assertIn("Leadership Access Vault", v15_onsite)
+        self.assertIn("Executive Access Vault", v15_onsite)
+        self.assertNotIn("Management Access Vault", v15_onsite)
+        self.assertNotIn("Early Career Access Vault", v15_onsite)
+
+
 
