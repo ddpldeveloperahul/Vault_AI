@@ -515,7 +515,7 @@ class JobsListView(APIView):
                 }
             })
         else:
-            limit = int(request.query_params.get("limit", 1000))
+            limit = int(request.query_params.get("limit", 50))
             items = JobSerializer(queryset[:limit], many=True, context={"request": request}).data
             return Response({"items": items, "total": total_count})
 
