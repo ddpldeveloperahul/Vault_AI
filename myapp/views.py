@@ -845,6 +845,7 @@ class RulesTestView(APIView):
         country = request.data.get("country")
         work_mode = request.data.get("work_mode")
         exp_min = request.data.get("exp_min")
+        exp_max = request.data.get("exp_max")
         location = request.data.get("location")
         salary = request.data.get("salary")
         try:
@@ -852,10 +853,16 @@ class RulesTestView(APIView):
         except ValueError:
             exp_min = None
 
+        try:
+            exp_max = float(exp_max) if exp_max not in [None, ""] else None
+        except ValueError:
+            exp_max = None
+
         job_info = {
             "country": country,
             "work_mode": work_mode,
             "exp_min": exp_min,
+            "exp_max": exp_max,
             "location": location,
             "salary": salary,
         }

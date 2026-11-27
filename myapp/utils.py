@@ -577,16 +577,20 @@ def get_job_vault_list(job_data, rules=None):
                 t_min = float(t_min) if t_min is not None else 0.0
                 t_max = float(t_max) if t_max is not None else None
 
-            # Boundary-inclusive interval matching (e.g. 0-5 yrs, 5-10 yrs, 10-15 yrs, 15+ yrs)
+            # Open upper bound (e.g. 15+ yrs)
             if lo is not None and hi is not None:
                 if t_max is None:
-                    # Open upper bound tier (e.g. Executive Access Vault: 15+ yrs)
-                    if hi >= t_min or lo >= t_min:
+                    # Open upper bound tier (e.g. Executive 15+ yrs)
+                    # Matches if min experience is >= t_min, or if range extends beyond t_min (e.g. 10-18 yrs)
+                    if lo >= t_min or hi > t_min:
                         matched.append(t_name)
                         tier_matched = True
                 else:
-                    # Overlaps if job experience range [lo, hi] intersects tier interval [t_min, t_max] (inclusive)
-                    # Correctly handles boundary points (e.g. 5 yrs in 0-5 and 5-10; 10 yrs in 5-10 and 10-15; 15 yrs in 10-15 and 15+)
+                    # Closed interval [t_min, t_max] with inclusive boundary overlaps
+                    # e.g. 0-5 yrs, 5-10 yrs, 10-15 yrs:
+                    # - 10 yrs matches both 5-10 yrs and 10-15 yrs
+                    # - 5 yrs matches both 0-5 yrs and 5-10 yrs
+                    # - 5-15 yrs spans across 0-5, 5-10, and 10-15 yrs
                     if lo <= t_max and hi >= t_min:
                         matched.append(t_name)
                         tier_matched = True

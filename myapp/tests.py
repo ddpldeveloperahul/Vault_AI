@@ -386,5 +386,25 @@ class JobVaultAPITests(APITestCase):
         self.assertNotIn("Management Access Vault", v15_onsite)
         self.assertNotIn("Early Career Access Vault", v15_onsite)
 
+        # Case 5: 5-15 yrs range + Remote -> 4 vaults: Remote, Early Career (0-5), Management (5-10), Leadership (10-15)
+        v5_15_remote = get_job_vault_list({"exp_min": 5.0, "exp_max": 15.0, "work_mode": "Remote", "location": "India"})
+        self.assertIn("Remote Access Vault", v5_15_remote)
+        self.assertIn("Early Career Access Vault", v5_15_remote)
+        self.assertIn("Management Access Vault", v5_15_remote)
+        self.assertIn("Leadership Access Vault", v5_15_remote)
+        self.assertNotIn("Executive Access Vault", v5_15_remote)
+
+        # Case 6: RulesTestView API with exp_min & exp_max
+        res_test = self.client.post("/api/rules/test", {
+            "country": "India",
+            "work_mode": "Remote",
+            "exp_min": 10,
+            "exp_max": 10
+        }, format="json")
+        self.assertEqual(res_test.status_code, status.HTTP_200_OK)
+        self.assertIn("Remote Access Vault", res_test.data["vault"])
+        self.assertIn("Management Access Vault", res_test.data["vault"])
+        self.assertIn("Leadership Access Vault", res_test.data["vault"])
+
 
 
