@@ -95,12 +95,12 @@
       }
     },
     {
-      "name": "4. Get Jobs List (Filter by Vault: India · Fresher 0-2 yrs)",
+      "name": "4. Get Jobs List (Paginated, Filter by Early Career Access Vault)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/jobs?vault=India · Fresher&limit=50",
+          "raw": "{{base_url}}/api/jobs?page=1&page_size=50&vault=Early Career Access Vault",
           "host": [
             "{{base_url}}"
           ],
@@ -110,25 +110,29 @@
           ],
           "query": [
             {
-              "key": "vault",
-              "value": "India · Fresher"
+              "key": "page",
+              "value": "1"
             },
             {
-              "key": "limit",
+              "key": "page_size",
               "value": "50"
+            },
+            {
+              "key": "vault",
+              "value": "Early Career Access Vault"
             }
           ]
         },
-        "description": "Lists jobs in 0-2 yrs tier (includes freshers, 1 yr, and 2 yr overlapping entries)."
+        "description": "Lists paginated jobs in Early Career Access Vault (0-5 yrs, includes freshers and overlapping boundary entries). Returns items array and pagination envelope."
       }
     },
     {
-      "name": "5. Get Jobs List (Filter by Vault: India · Junior 2-5 yrs)",
+      "name": "5. Get Jobs List (Paginated, Filter by Remote Access Vault)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/jobs?vault=India · Junior&limit=50",
+          "raw": "{{base_url}}/api/jobs?page=1&page_size=50&vault=Remote Access Vault",
           "host": [
             "{{base_url}}"
           ],
@@ -138,16 +142,20 @@
           ],
           "query": [
             {
-              "key": "vault",
-              "value": "India · Junior"
+              "key": "page",
+              "value": "1"
             },
             {
-              "key": "limit",
+              "key": "page_size",
               "value": "50"
+            },
+            {
+              "key": "vault",
+              "value": "Remote Access Vault"
             }
           ]
         },
-        "description": "Lists jobs in 2-5 yrs tier (includes 2 yr overlapping entries)."
+        "description": "Lists paginated jobs in Remote Access Vault. Returns items and pagination envelope."
       }
     },
     {

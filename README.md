@@ -7,7 +7,7 @@
 [![OpenAI](https://img.shields.io/badge/OpenAI%20Vision-GPT--4o-orange.svg)](https://openai.com/)
 [![WhiteNoise](https://img.shields.io/badge/Static-WhiteNoise%206.12-purple.svg)](https://whitenoise.readthedocs.io/)
 [![Gunicorn](https://img.shields.io/badge/Server-Gunicorn%20WSGI-black.svg)](https://gunicorn.org/)
-[![Tests](https://img.shields.io/badge/Tests-11%20Passed-brightgreen.svg)](#verification--testing)
+[![Tests](https://img.shields.io/badge/Tests-13%20Passed-brightgreen.svg)](#verification--testing)
 
 **JobVault AI** is an enterprise-grade intelligent automation platform that ingests job screenshots and multi-page PDF documents from messaging and social channels (WhatsApp, LinkedIn, Telegram, Instagram), extracts full OCR characters and structured job attributes using **OpenAI Vision API (GPT-4o / GPT-4o-mini)** and **Google Gemini Vision**, performs smart deduplication and confidence scoring, automatically generates standard categorized **Job IDs**, dual-routes jobs across multiple access vaults, and exports the data into client-standard **12-Column multi-tab Excel workbooks** and CSV sheets.
 
@@ -19,6 +19,7 @@
 - [Standard Access Vaults & Experience Tiers](#standard-access-vaults--experience-tiers)
 - [Job ID Standard Format & Prefix Priority](#job-id-standard-format--prefix-priority)
 - [Cross-Vault Dual-Routing Architecture](#cross-vault-dual-routing-architecture)
+- [Server-Side Pagination Architecture](#server-side-pagination-architecture)
 - [Dynamic Vaults Management (Admin Customization)](#dynamic-vaults-management-admin-customization)
 - [PDF Page Limit & Ingestion Guardrails](#pdf-page-limit--ingestion-guardrails)
 - [Client Master Excel Schema (12 Columns)](#client-master-excel-schema-12-columns)
@@ -30,11 +31,12 @@
 - [API Reference (Comprehensive)](#api-reference-comprehensive)
   - [1. Authentication & Security Suite](#1-authentication--security-suite)
   - [2. Screenshots Ingestion APIs](#2-screenshots-ingestion-apis)
-  - [3. Jobs Management APIs](#3-jobs-management-apis)
+  - [3. Jobs Management & Review APIs](#3-jobs-management--review-apis)
   - [4. Access Vaults Management APIs](#4-access-vaults-management-apis)
   - [5. Settings & Rules APIs](#5-settings--rules-apis)
   - [6. Export APIs (Excel & CSV)](#6-export-apis-excel--csv)
-  - [7. System Health, Stats & Monitoring APIs](#7-system-health-stats--monitoring-apis)
+  - [7. System Health, Stats & Activity Logs APIs](#7-system-health-stats--activity-logs-apis)
+  - [8. Standard Pagination Query & Response Format](#8-standard-pagination-query--response-format)
 - [Verification & Testing](#verification--testing)
 - [License & Authors](#license--authors)
 
@@ -106,6 +108,12 @@
     - `WhiteNoise` static file handling integrated safely into Django middleware.
     - Flexible database adapter supporting `DATABASE_URL` (cloud providers), PostgreSQL, and SQLite fallback.
     - `Procfile` included for container and cloud deployments.
+
+15. **Full Server-Side & UI Pagination Across Large Datasets**:
+    - High-performance server-side slicing across all high-volume tables: **Job Sheet**, **Screenshots (Inbox)**, **Review Queue**, and **Activity Log**.
+    - Enforced safe default of **50 records per page** (configurable to `25`, `50`, or `100`), preventing DOM overload and slow load times.
+    - Uniform API pagination envelope containing `total`, `page`, `page_size`, `total_pages`, `has_next`, and `has_prev`.
+    - Responsive frontend pagination controls with `Showing X–Y of Z`, interactive `« Previous` and `Next »` buttons, page index, and instant per-page limit dropdown.
 
 ---
 
@@ -192,6 +200,50 @@ In recruitment workflows, candidates search both by **work style** (e.g. Remote)
 - When a job is marked as `Remote`, it is routed to `Remote Access Vault` **AND** placed into the matching experience tier (`Early Career Access Vault`, `Management Access Vault`, etc.).
 - When a job offers compensation in US Dollars (`$`) or foreign currency and is Remote, it automatically routes to **`Remote Access Vault`** AND **`UAE & Global Access Vault`**.
 - All vault tags appear in the Job Sheet table and are mirrored across corresponding tabs in the downloaded Excel workbook.
+
+---
+
+## Server-Side Pagination Architecture
+
+To ensure high performance when dealing with hundreds or thousands of jobs and screenshots, JobVault AI enforces **server-side query slicing** and pagination across all large listing views.
+
+### Standard Pagination Query Parameters:
+
+| Parameter | Type | Default | Options | Description |
+| :--- | :---: | :---: | :---: | :--- |
+| `page` | Integer | `1` | `>= 1` | The current page number to fetch. |
+| `page_size` | Integer | `50` | `25`, `50`, `100` *(Max: 100)* | The number of records to return in a single page. Default is safely capped at 50 to prevent frontend lag. |
+
+### Standard JSON Pagination Envelope:
+
+Every paginated endpoint returns data enclosed within a standardized `pagination` metadata object:
+
+```json
+{
+  "items": [ ... ],
+  "pagination": {
+    "total": 128,
+    "page": 1,
+    "page_size": 50,
+    "total_pages": 3,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
+
+### Paginated UI Views:
+1. **Job Sheet (`/job/` & `/jobs/`)**:
+   - Default: `50` jobs per page (selector options: `25`, `50`, `100`).
+   - Slices database records in descending ID order (`-id`).
+   - Includes real-time filter preservation across search (`q`), `vault`, `status`, and `source`.
+2. **Screenshots Inbox (`/inbox/` & `/screenshots/`)**:
+   - Default: `50` screenshots per page (selector options: `25`, `50`, `100`).
+   - Returns real-time processing queue counters alongside paginated cards.
+3. **Review Queue (`/review/` & `/reviews/`)**:
+   - Default: `25` jobs per page (selector options: `10`, `25`, `50`).
+4. **Activity Log (`/activity/`)**:
+   - Default: `50` log entries per page (selector options: `25`, `50`, `100`).
 
 ---
 
@@ -365,11 +417,44 @@ Content-Type: application/json
 
 | Method | Endpoint | Auth Required | Description |
 | :--- | :--- | :---: | :--- |
-| `GET` | `/api/screenshots/` | No | Lists uploaded screenshots with status stages (`received`, `reading`, `verifying`, `sorting`, `saved`, `failed`). Supports `?limit=60`. |
+| `GET` | `/api/screenshots/` | No | Lists uploaded screenshots with processing stages (`received`, `reading`, `verifying`, `sorting`, `saved`, `failed`). Supports server-side pagination with query parameters `?page=1&page_size=50` (options: `25`, `50`, `100`). Returns `items`, live `queue` status, and standard `pagination` envelope. |
 | `POST` | `/api/screenshots/` | No | Ingests job screenshots (`.png`, `.jpg`, `.webp`) or PDF documents (`.pdf`). Supports query parameter `?combine=true` to merge up to 4 elongated screenshots into 1 single job. Enforces 1–100 pages limit on PDFs. |
 | `GET` | `/api/screenshots/<id>/` | No | Retrieves details of a specific screenshot, raw OCR transcription, extracted jobs, and stage status. |
 | `POST` | `/api/screenshots/<id>/retry/` | No | Re-runs OCR vision extraction on a failed or stuck screenshot. |
 | `DELETE` | `/api/screenshots/<id>/` | No | Permanently deletes a screenshot and its associated pending jobs. |
+
+#### Sample Paginated Screenshots Response:
+```http
+GET /api/screenshots/?page=1&page_size=50
+```
+```json
+{
+  "items": [
+    {
+      "id": 45,
+      "filename": "screenshot_1732700000.png",
+      "original_name": "job_post.png",
+      "stage": "saved",
+      "confidence": 94.5,
+      "jobs": [
+        { "id": 39, "code": "L-271126-01", "status": "synced" }
+      ]
+    }
+  ],
+  "queue": {
+    "queued": 0,
+    "running": 0
+  },
+  "pagination": {
+    "total": 92,
+    "page": 1,
+    "page_size": 50,
+    "total_pages": 2,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
 
 #### Sample Screenshot Upload Request (`multipart/form-data`):
 ```http
@@ -385,7 +470,7 @@ files: [binary file data]
 
 | Method | Endpoint | Auth Required | Description |
 | :--- | :--- | :---: | :--- |
-| `GET` | `/api/jobs/` | No | Lists all extracted jobs. Supports query filters: `status` (`synced`, `review`, `duplicate`, `rejected`), `vault` (filter by vault name), `source` (`WhatsApp`, `LinkedIn`, `Telegram`, `Instagram`), and `q` (search title, company, location, Job ID). |
+| `GET` | `/api/jobs/` | No | Lists all extracted jobs with server-side pagination. Enforces default `page_size=50` (options: `25`, `50`, `100`). Supports query filters: `?page=1&page_size=50`, `status` (`synced`, `review`, `duplicate`, `rejected`), `vault` (filter by vault name), `source` (`WhatsApp`, `LinkedIn`, `Telegram`, `Instagram`), and `q` (search title, company, location, Job ID). Returns `items` array and `pagination` metadata. |
 | `GET` | `/api/jobs/<id>/` | No | Retrieves full details for a specific job, including extracted attributes, evidence substrings, and linked screenshot. |
 | `PUT` | `/api/jobs/<id>/` | No | Updates job fields (`title`, `sector`, `company`, `location`, `country`, `salary`, `experience`, `qualification`, `other_details`, `work_mode`, `apply_contact`, `vault`). Automatically recalculates Job ID prefix if work mode/vault changes. |
 | `POST` | `/api/jobs/<id>/approve/` | No | Promotes a review job to `synced` (In Sheet). Allows approving jobs with empty/null fields or after manual inline editing. Generates standard Job ID if not already assigned. |
@@ -393,6 +478,37 @@ files: [binary file data]
 | `POST` | `/api/jobs/<id>/restore/` | No | Restores a previously rejected job back to `review` status. |
 | `DELETE` | `/api/jobs/<id>/` | No | Permanently deletes a job from the database. |
 | `POST` | `/api/jobs/<id>/generate-content/` | No | Uses AI to generate platform-ready social media posts for **LinkedIn** and **Instagram**, complete with hashtags, summaries, and application CTAs. |
+
+#### Sample Paginated Jobs Response:
+```http
+GET /api/jobs/?page=1&page_size=50&status=synced
+```
+```json
+{
+  "items": [
+    {
+      "id": 39,
+      "job_id": "L-271126-01",
+      "code": "L-271126-01",
+      "title": "SAP FICO Consultant",
+      "company": "Velodata",
+      "location": "Remote",
+      "vault": "Remote Access Vault, Management Access Vault, Leadership Access Vault",
+      "status": "synced",
+      "confidence": 99.0,
+      "created_at": "2026-11-27T10:15:30Z"
+    }
+  ],
+  "pagination": {
+    "total": 128,
+    "page": 1,
+    "page_size": 50,
+    "total_pages": 3,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
 
 #### Sample Social Content Generation Response:
 ```json
@@ -525,8 +641,33 @@ files: [binary file data]
 | :--- | :--- | :---: | :--- |
 | `GET` | `/api/health/` | No | System health check endpoint. Returns `{"ok": true, "provider": "mock", "authRequired": false}`. |
 | `GET` | `/api/stats/` | No | Provides real-time metrics for Dashboard KPI cards: total screenshots, synced in-sheet jobs, review queue count, duplicate counts, jobs by vault, jobs by source, and 14-day daily processing trend graph. |
-| `GET` | `/api/activity/` | No | Retrieves recent audit trail logs (`ADMIN_LOGIN`, `Review`, `VAULT_CREATED`, `ADMIN_PASSWORD_CHANGE`). Supports `?limit=50`. |
+| `GET` | `/api/activity/` | No | Retrieves system audit trail logs (`ADMIN_LOGIN`, `Review`, `VAULT_CREATED`, `ADMIN_PASSWORD_CHANGE`). Supports server-side pagination: `?page=1&page_size=50` (options: `25`, `50`, `100`). Returns `items` array and `pagination` envelope. |
 | `GET` | `/api/integrations/` | No | Returns available AI Vision providers (`openai`, `gemini`, `mock`), configured models, and active connection status. |
+
+#### Sample Paginated Activity Log Response:
+```http
+GET /api/activity/?page=1&page_size=50
+```
+```json
+{
+  "items": [
+    {
+      "id": 104,
+      "action": "Admin",
+      "details": "Vault rules updated · 2 jobs re-sorted",
+      "created_at": "2026-11-27T10:04:12Z"
+    }
+  ],
+  "pagination": {
+    "total": 348,
+    "page": 1,
+    "page_size": 50,
+    "total_pages": 7,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
 
 ---
 
@@ -542,11 +683,11 @@ cd "C:\Users\Dell Pc\Desktop\vault_ai_project\vault_ai"
 Output:
 ```text
 Creating test database for alias 'default'...
-Found 11 test(s).
+Found 13 test(s).
 System check identified no issues (0 silenced).
-...........
+.............
 ----------------------------------------------------------------------
-Ran 11 tests in 14.954s
+Ran 13 tests in 14.209s
 
 OK
 Destroying test database for alias 'default'...
